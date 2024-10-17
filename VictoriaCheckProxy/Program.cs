@@ -124,7 +124,7 @@ namespace VictoriaCheckProxy
                     switch (method)
                     {
                         case "labelValues_v5":
-                            prefix = Converter.ReadLongString(stream);
+                            prefix = await Converter.ReadLongStringAsync(stream);
                             await stream.ReadExactlyAsync(headPart);
                             packetSize = BinaryPrimitives.ReverseEndianness(BitConverter.ToInt64(headPart));
 
@@ -167,27 +167,27 @@ namespace VictoriaCheckProxy
                     lastPos += Converter.UnmarshalVarInt64(packet, ref maxTs, lastPos);
                     if (minTs < Program.endDate && Program.startDate < maxTs)
                     {
-                        Console.WriteLine("Going to vmstorage");
+                        //Console.WriteLine("Going to vmstorage");
                         try
                         {
 
                             
                             var cts = new CancellationTokenSource();
-                            vmstorStream.Write(pad);
-                            vmstorStream.Write(Converter.MarshalString(method));
-                            vmstorStream.Write(commonPart);
+                            await vmstorStream.WriteAsync(pad);
+                            await vmstorStream.WriteAsync(Converter.MarshalString(method));
+                            vmstorStream.WriteAsync(commonPart);
                             if (prefix.Length > 0)
                             {
-                                vmstorStream.Write(prefix);
+                                vmstorStream.WriteAsync(prefix);
                             }
-                            vmstorStream.Write(headPart);
-                            vmstorStream.Write(packet);
+                            await vmstorStream.WriteAsync(headPart);
+                            await vmstorStream.WriteAsync(packet);
                             if (postfix.Length > 0)
                             {
-                                vmstorStream.Write(postfix);
+                                await vmstorStream.WriteAsync(postfix);
                             }
-                            vmstorStream.Flush();
-                            Console.WriteLine("Sent request to vmstorage");
+                            await vmstorStream.FlushAsync();
+                            //Console.WriteLine("Sent request to vmstorage");
 
                             //await Task.Delay(1000);
                             int bytesRead = 0;
@@ -288,7 +288,7 @@ namespace VictoriaCheckProxy
                                     }
                                 }
 
-                                Console.WriteLine($"Complete. Max Read {maxDecompressed}");
+                                //Console.WriteLine($"Complete. Max Read {maxDecompressed}");
                                 cts.Cancel();
                             });
                             try
