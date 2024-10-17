@@ -17,6 +17,14 @@ namespace VictoriaCheckProxy
             return Encoding.UTF8.GetString(bytes);
         }
 
+        public static async Task<string> UnmarshalStringAsync(Stream reader)
+        {
+            UInt16 length = await Converter.UnmarshalUint16Async(reader);
+            var bytes = new byte[length];
+            await reader.ReadExactlyAsync(bytes);
+            return Encoding.UTF8.GetString(bytes);
+        }
+
         public static string UnmarshalLongString(BinaryReader reader)
         {
             UInt64 length = Converter.UnmarshalUint64(reader);
@@ -37,6 +45,17 @@ namespace VictoriaCheckProxy
 
             MarshalUint64(length).CopyTo(buf, 0);
             
+            reader.Read(buf, 8, (int)length);
+            return buf;
+        }
+
+        public static byte[] ReadLongString(Stream reader)
+        {
+            UInt64 length = Converter.UnmarshalUint64(reader);
+            byte[] buf = new byte[length + 8];
+
+            MarshalUint64(length).CopyTo(buf, 0);
+
             reader.Read(buf, 8, (int)length);
             return buf;
         }
@@ -70,12 +89,36 @@ namespace VictoriaCheckProxy
             //return reader.ReadUInt16();
         }
 
+        public static async Task<ushort> UnmarshalUint16Async(Stream reader)
+        {
+            /*if (BitConverter.IsLittleEndian)
+                span.Reverse();*/
+            var bytes = new byte[2];
+            await reader.ReadExactlyAsync(bytes);
+            var tmp = bytes[0];
+            bytes[0] = bytes[1];
+            bytes[1] = tmp;
+            return BitConverter.ToUInt16(bytes, 0);
+            //return reader.ReadUInt16();
+        }
+
         public static ulong UnmarshalUint64(BinaryReader reader)
         {
             /*if (BitConverter.IsLittleEndian)
                 span.Reverse();*/
             var bytes = reader.ReadBytes(8);
             
+            return BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt64(bytes, 0));
+            //return reader.ReadUInt16();
+        }
+
+        public static ulong UnmarshalUint64(Stream reader)
+        {
+            /*if (BitConverter.IsLittleEndian)
+                span.Reverse();*/
+            var bytes = new byte[8]; 
+            reader.ReadExactly(bytes);
+
             return BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt64(bytes, 0));
             //return reader.ReadUInt16();
         }
