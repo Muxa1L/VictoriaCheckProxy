@@ -60,7 +60,8 @@ namespace VictoriaCheckProxy
         //const string searchMethod = "search_v7";
         const bool isCompressed = true;
 
-        private static readonly byte[] emptyResponse = new byte[] { 0x28, 0xb5, 0x2f, 0xfd, 0x04, 0x60, 0x44, 0x00, 0x00, 0x08, 0x00, 0x01, 0x54, 0x01, 0x02, 0x14, 0x04 };
+        private static readonly byte[] zstdMagicBytes = new byte[] { 0x28, 0xb5, 0x2f, 0xfd, 0x04, 0x60 };
+        private static readonly byte[] emptyResponse = new byte[] { 0x44, 0x00, 0x00, 0x08, 0x00, 0x01, 0x54, 0x01, 0x02, 0x14, 0x04 };
 
         TcpClient _client;
         bool _ownsClient;
@@ -78,6 +79,7 @@ namespace VictoriaCheckProxy
             {
                 //Console.WriteLine($"connection opened from {_client.Client.RemoteEndPoint.ToString()}");
                 using var stream = _client.GetStream();
+                bool zstdMBSent = false;
                 ///Handshake begin 
                 Console.WriteLine("Handshake begin");
                 GetMessage(vmselectHello, stream);
@@ -168,10 +170,9 @@ namespace VictoriaCheckProxy
                     if (minTs < Program.endDate && Program.startDate < maxTs)
                     {
                         //Console.WriteLine("Going to vmstorage");
+                        zstdMBSent = true;
                         try
                         {
-
-                            
                             var cts = new CancellationTokenSource();
                             vmstorStream.Write(pad);
                             vmstorStream.Write(Converter.MarshalString(method));
@@ -213,13 +214,13 @@ namespace VictoriaCheckProxy
                                         {
                                             currPos = Math.Abs(currPos);
                                             Array.Copy(decompressed, decompRead - currPos, decompressed, 0, currPos);
-                                            decompRead = await decomp.ReadAsync(decompressed, currPos, decompressed.Length - currPos);
+                                            decompRead = decomp.Read(decompressed, currPos, decompressed.Length - currPos);
                                             decompRead += currPos;
                                             currPos = 0;
                                         }
                                         else
                                         {
-                                            decompRead = await decomp.ReadAsync(decompressed);
+                                            decompRead = decomp.Read(decompressed);
                                         }
 
 
@@ -291,7 +292,7 @@ namespace VictoriaCheckProxy
                                     totalRead += bytesRead;
                                     //Console.WriteLine($"Got {bytesRead} bytes, total {totalRead}");//, clientPipe pos {pipeClient.}, serverPipe pos {pipeServer.Position}");
                                     await stream.WriteAsync(buffer, 0, bytesRead);
-
+                                    Console.WriteLine($"read: {bytesRead} bytes: {BitConverter.ToString(buffer.Take(bytesRead).ToArray())}");
                                     if (!cts.IsCancellationRequested)
                                     {
                                         await pipe.Writer.AsStream().WriteAsync(buffer, 0, bytesRead);
@@ -300,9 +301,9 @@ namespace VictoriaCheckProxy
                                 }
                             }
                             catch (OperationCanceledException) {
-                                //Console.WriteLine("Cancelled");
+                                Console.WriteLine("Cancelled");
                             }
-                            Console.WriteLine($"Last read: {bytesRead} Last bytes: {BitConverter.ToString(buffer.Skip(bytesRead-5).Take(5).ToArray())}");
+                            //Console.WriteLine($"Last read: {bytesRead} Last bytes: {BitConverter.ToString(buffer.Take(bytesRead).ToArray())}");
                         }
                         catch (Exception ex)
                         {
@@ -315,16 +316,22 @@ namespace VictoriaCheckProxy
                     }
                     else
                     {
-                        Console.WriteLine($"Period {minTs} to {maxTs} not inside selected month. Sending empty response");
-                        stream.Write(emptyResponse);
+                        //Console.WriteLine($"Period {minTs} to {maxTs} not inside selected month. Sending empty response");
+                        if (!zstdMBSent)
+                        {
+                            await stream.WriteAsync(zstdMagicBytes);
+                            zstdMBSent = true;
+                        }
+                        await stream.WriteAsync(emptyResponse);
                     }
 
-                    stream.Flush();
-                    vmstorStream.Flush();
+                    //stream.Flush();
+                    //vmstorStream.Flush();
                     //_client.Close();
 
                 }                
             }
+            catch (EndOfStreamException) { } //хпуой
             catch (Exception ex)
             {
                 Console.WriteLine(ex.ToString());
