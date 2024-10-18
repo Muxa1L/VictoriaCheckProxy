@@ -17,6 +17,14 @@ namespace VictoriaCheckProxy
             return Encoding.UTF8.GetString(bytes);
         }
 
+        public static string UnmarshalString(Stream reader)
+        {
+            UInt16 length = Converter.UnmarshalUint16(reader);
+            var bytes = new byte[length];
+            reader.ReadExactly(bytes);
+            return Encoding.UTF8.GetString(bytes);
+        }
+
         public static async Task<string> UnmarshalStringAsync(Stream reader)
         {
             UInt16 length = await Converter.UnmarshalUint16Async(reader);
@@ -82,6 +90,19 @@ namespace VictoriaCheckProxy
             /*if (BitConverter.IsLittleEndian)
                 span.Reverse();*/
             var bytes = reader.ReadBytes(2);
+            var tmp = bytes[0];
+            bytes[0] = bytes[1];
+            bytes[1] = tmp;
+            return BitConverter.ToUInt16(bytes, 0);
+            //return reader.ReadUInt16();
+        }
+
+        public static ushort UnmarshalUint16(Stream reader)
+        {
+            /*if (BitConverter.IsLittleEndian)
+                span.Reverse();*/
+            var bytes = new byte[2];
+            reader.ReadExactly(bytes);
             var tmp = bytes[0];
             bytes[0] = bytes[1];
             bytes[1] = tmp;

@@ -196,96 +196,88 @@ namespace VictoriaCheckProxy
                             var completion = Task.Run(async () =>
                             {
                                 int maxDecompressed = 0;
+                                int decompRead = 0;
+                                bool isCompleted = false;
+                                bool startMarkerRead = false;
+                                var decompressed = ArrayPool<byte>.Shared.Rent(1 * 1024 * 1024); // new byte[1024 * 1024];
 
-                                //using (var pipeClient = new AnonymousPipeClientStream(pipeServer.GetClientHandleAsString())) // = new AnonymousPipeClientStream(PipeDirection.In, pipeServer.GetClientHandleAsString()))
-                                //using (var decomp = new DecompressionStream(pipeClient, bufferSize: 100 * 1024 * 1024))
-                                
+                                int currPos = 0;
+                                int blockCount = 0;
+                                ulong blockSize = 0;
+                                try
                                 {
-                                    int decompRead = 0;
-                                    bool isCompleted = false;
-                                    bool startMarkerRead = false;
-                                    var decompressed = ArrayPool<byte>.Shared.Rent(1 * 1024 * 1024); // new byte[1024 * 1024];
-
-                                    int currPos = 0;
-                                    int blockCount = 0;
-                                    ulong blockSize = 0;
-                                    try
+                                    while (!isCompleted)
                                     {
-
-
-                                        while (!isCompleted)
+                                        //Console.WriteLine("WaitForDecomp");
+                                        if (currPos < 0)
                                         {
-                                            //Console.WriteLine("WaitForDecomp");
-                                            if (currPos < 0)
+                                            currPos = Math.Abs(currPos);
+                                            Array.Copy(decompressed, decompRead - currPos, decompressed, 0, currPos);
+                                            decompRead = await decomp.ReadAsync(decompressed, currPos, decompressed.Length - currPos);
+                                            decompRead += currPos;
+                                            currPos = 0;
+                                        }
+                                        else
+                                        {
+                                            decompRead = await decomp.ReadAsync(decompressed);
+                                        }
+
+
+                                        if (decompRead > maxDecompressed)
+                                            maxDecompressed = decompRead;
+                                        //Console.WriteLine($"Decompressed {decompRead}");
+                                        if (!startMarkerRead)
+                                        {
+                                            var empty = Converter.UnmarshalString(decompressed);
+                                            if (empty != "")
                                             {
-                                                currPos = Math.Abs(currPos);
-                                                Array.Copy(decompressed, decompRead - currPos, decompressed, 0, currPos);
-                                                decompRead = await decomp.ReadAsync(decompressed, currPos, decompressed.Length - currPos);
-                                                decompRead += currPos;
-                                                currPos = 0;
+                                                throw new Exception("kaka");
                                             }
                                             else
                                             {
-                                                decompRead = await decomp.ReadAsync(decompressed);
+                                                currPos = 8;
+                                                startMarkerRead = true;
                                             }
+                                            blockSize = Converter.UnmarshalUint64(decompressed, 8);
+                                            blockCount = 1;
+                                            currPos += 8 + (int)blockSize;
+                                        }
 
-
-                                            if (decompRead > maxDecompressed)
-                                                maxDecompressed = decompRead;
-                                            //Console.WriteLine($"Decompressed {decompRead}");
-                                            if (!startMarkerRead)
+                                        while (currPos < decompRead - 8 && blockSize != 0)
+                                        {
+                                            blockSize = Converter.UnmarshalUint64(decompressed, currPos);
+                                            currPos = currPos + 8 + (int)blockSize;
+                                            blockCount++;
+                                        }
+                                        if (blockSize == 0)
+                                        {
+                                            //Console.WriteLine("Empty block");
+                                        }
+                                        if (decompRead - currPos == 8)
+                                        {
+                                            try
                                             {
-                                                var empty = Converter.UnmarshalString(decompressed);
-                                                if (empty != "")
+                                                var complete = Converter.UnmarshalLongString(decompressed, decompRead - 8);
+                                                if (complete == "")
                                                 {
-                                                    throw new Exception("kaka");
+                                                    isCompleted = true;
                                                 }
-                                                else
-                                                {
-                                                    currPos = 8;
-                                                    startMarkerRead = true;
-                                                }
-                                                blockSize = Converter.UnmarshalUint64(decompressed, 8);
-                                                blockCount = 1;
-                                                currPos += 8 + (int)blockSize;
                                             }
-
-                                            while (currPos < decompRead - 8 && blockSize != 0)
-                                            {
-                                                blockSize = Converter.UnmarshalUint64(decompressed, currPos);
-                                                currPos = currPos + 8 + (int)blockSize;
-                                                blockCount++;
-                                            }
-                                            if (blockSize == 0)
-                                            {
-                                                //Console.WriteLine("Empty block");
-                                            }
-                                            if (decompRead - currPos == 8)
-                                            {
-                                                try
-                                                {
-                                                    var complete = Converter.UnmarshalLongString(decompressed, decompRead - 8);
-                                                    if (complete == "")
-                                                    {
-                                                        isCompleted = true;
-                                                    }
-                                                }
-                                                catch (Exception) { }
-                                            }
-                                            else
-                                            {
-                                                currPos = currPos - decompRead;
-                                            }
+                                            catch (Exception) { }
+                                        }
+                                        else
+                                        {
+                                            currPos = currPos - decompRead;
                                         }
                                     }
-                                    catch (Exception ex)
-                                    {
-                                        Console.WriteLine(ex.Message);
-                                    }
-                                    finally
-                                    {
-                                        ArrayPool<byte>.Shared.Return(decompressed);
-                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine(ex.Message);
+                                }
+                                finally
+                                {
+                                    ArrayPool<byte>.Shared.Return(decompressed);
                                 }
 
                                 //Console.WriteLine($"Complete. Max Read {maxDecompressed}");
@@ -310,6 +302,7 @@ namespace VictoriaCheckProxy
                             catch (OperationCanceledException) {
                                 //Console.WriteLine("Cancelled");
                             }
+                            Console.WriteLine($"Last read: {bytesRead} Last bytes: {BitConverter.ToString(buffer.Skip(bytesRead-5).Take(5).ToArray())}");
                         }
                         catch (Exception ex)
                         {
@@ -330,12 +323,7 @@ namespace VictoriaCheckProxy
                     await vmstorStream.FlushAsync();
                     //_client.Close();
 
-                }
-                //using (var sr = new BinaryReader(stream))
-                {
-                    
-                }
-                
+                }                
             }
             catch (Exception ex)
             {
