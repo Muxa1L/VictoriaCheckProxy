@@ -110,12 +110,12 @@ namespace VictoriaCheckProxy
                 while (_client.Connected)
                 {
                     byte[] pad = new byte[6];
-                    await stream.ReadExactlyAsync(pad);
+                    stream.ReadExactly(pad);
 
-                    string method = await Converter.UnmarshalStringAsync(stream);
+                    string method = Converter.UnmarshalString(stream);
                     //bool bypass = false;
                     byte[] commonPart = new byte[5];
-                    await stream.ReadExactlyAsync(commonPart); //tracing flag + timeout
+                    stream.ReadExactly(commonPart); //tracing flag + timeout
                     byte[] prefix = new byte[0];
                     byte[] headPart = new byte[8];
                     byte[] postfix = new byte[0];
@@ -124,8 +124,8 @@ namespace VictoriaCheckProxy
                     switch (method)
                     {
                         case "labelValues_v5":
-                            prefix = await Converter.ReadLongStringAsync(stream);
-                            await stream.ReadExactlyAsync(headPart);
+                            prefix = Converter.UnmarshalString(stream);
+                            stream.ReadExactly(headPart);
                             packetSize = BinaryPrimitives.ReverseEndianness(BitConverter.ToInt64(headPart));
 
                             //tagName = Converter.UnmarshalString(sr);
@@ -133,7 +133,7 @@ namespace VictoriaCheckProxy
                             break;
                         case "labelNames_v5":
                         case "search_v7":
-                            await stream.ReadExactlyAsync(headPart);
+                            stream.ReadExactly(headPart);
                             packetSize = BinaryPrimitives.ReverseEndianness(BitConverter.ToInt64(headPart));
                             //bypass = false;
                             break;
@@ -148,13 +148,13 @@ namespace VictoriaCheckProxy
                     //long packetSize = BinaryPrimitives.ReverseEndianness(sr.ReadInt64());
                     //long packetSize = BinaryPrimitives.ReverseEndianness(BitConverter.ToInt64(headPart, 5)); 
                     var packet = new byte[packetSize];
-                    await stream.ReadExactlyAsync(packet);
+                    stream.ReadExactly(packet);
                     switch (method)
                     {
                         case "labelNames_v5":
                         case "labelValues_v5":
                             postfix = new byte[0];
-                            await stream.ReadExactlyAsync(postfix);
+                            stream.ReadExactly(postfix);
                             break;
 
                     }
@@ -173,23 +173,23 @@ namespace VictoriaCheckProxy
 
                             
                             var cts = new CancellationTokenSource();
-                            await vmstorStream.WriteAsync(pad);
-                            await vmstorStream.WriteAsync(Converter.MarshalString(method));
-                            vmstorStream.WriteAsync(commonPart);
+                            vmstorStream.Write(pad);
+                            vmstorStream.Write(Converter.MarshalString(method));
+                            vmstorStream.Write(commonPart);
                             if (prefix.Length > 0)
                             {
-                                vmstorStream.WriteAsync(prefix);
+                                vmstorStream.Write(prefix);
                             }
-                            await vmstorStream.WriteAsync(headPart);
-                            await vmstorStream.WriteAsync(packet);
+                            vmstorStream.Write(headPart);
+                            vmstorStream.Write(packet);
                             if (postfix.Length > 0)
                             {
-                                await vmstorStream.WriteAsync(postfix);
+                                vmstorStream.Write(postfix);
                             }
-                            await vmstorStream.FlushAsync();
+                            vmstorStream.Flush();
                             //Console.WriteLine("Sent request to vmstorage");
 
-                            //await Task.Delay(1000);
+                            //Task.Delay(1000);
                             int bytesRead = 0;
 
                             int totalRead = 0;
@@ -319,8 +319,8 @@ namespace VictoriaCheckProxy
                         stream.Write(emptyResponse);
                     }
 
-                    await stream.FlushAsync();
-                    await vmstorStream.FlushAsync();
+                    stream.Flush();
+                    vmstorStream.Flush();
                     //_client.Close();
 
                 }                
