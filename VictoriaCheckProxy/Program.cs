@@ -124,7 +124,7 @@ namespace VictoriaCheckProxy
                     switch (method)
                     {
                         case "labelValues_v5":
-                            prefix = Converter.UnmarshalString(stream);
+                            prefix = Converter.ReadLongString(stream);
                             stream.ReadExactly(headPart);
                             packetSize = BinaryPrimitives.ReverseEndianness(BitConverter.ToInt64(headPart));
 
