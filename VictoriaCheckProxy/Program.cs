@@ -292,7 +292,7 @@ namespace VictoriaCheckProxy
                                     totalRead += bytesRead;
                                     //Console.WriteLine($"Got {bytesRead} bytes, total {totalRead}");//, clientPipe pos {pipeClient.}, serverPipe pos {pipeServer.Position}");
                                     await stream.WriteAsync(buffer, 0, bytesRead);
-                                    Console.WriteLine($"read: {bytesRead} bytes: {BitConverter.ToString(buffer.Take(bytesRead).ToArray())}");
+                                    //Console.WriteLine($"read: {bytesRead} bytes: {BitConverter.ToString(buffer.Take(bytesRead).ToArray())}");
                                     if (!cts.IsCancellationRequested)
                                     {
                                         await pipe.Writer.AsStream().WriteAsync(buffer, 0, bytesRead);
