@@ -194,7 +194,7 @@ namespace VictoriaCheckProxy
                             int bytesRead = 0;
 
                             int totalRead = 0;
-                            var completion = Task.Run(async () =>
+                            var completion = Task.Run(() =>
                             {
                                 int maxDecompressed = 0;
                                 int decompRead = 0;
@@ -300,9 +300,11 @@ namespace VictoriaCheckProxy
 
                                 }
                             }
+                            
                             catch (OperationCanceledException) {
-                                Console.WriteLine("Cancelled");
+                                //Console.WriteLine("Cancelled");
                             }
+                            await completion;
                             //Console.WriteLine($"Last read: {bytesRead} Last bytes: {BitConverter.ToString(buffer.Take(bytesRead).ToArray())}");
                         }
                         catch (Exception ex)
