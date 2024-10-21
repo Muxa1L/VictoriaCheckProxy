@@ -8,6 +8,7 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <ContainerFamily>alpine</ContainerFamily>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Program_bak.cs" />
