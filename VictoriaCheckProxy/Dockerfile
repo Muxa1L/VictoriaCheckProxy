@@ -15,11 +15,11 @@ COPY ["VictoriaCheckProxy/VictoriaCheckProxy.csproj", "VictoriaCheckProxy/"]
 RUN dotnet restore "./VictoriaCheckProxy/VictoriaCheckProxy.csproj"
 COPY . .
 WORKDIR "/src/VictoriaCheckProxy"
-RUN dotnet build "./VictoriaCheckProxy.csproj" --runtime linux-musl-x64 -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet build "./VictoriaCheckProxy.csproj" -c $BUILD_CONFIGURATION --runtime linux-musl-x64 -o /app/build && echo '$BUILD_CONFIGURATION'
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./VictoriaCheckProxy.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=true && ls -la /app/publish/
+RUN dotnet publish "./VictoriaCheckProxy.csproj" -c $BUILD_CONFIGURATION --runtime linux-musl-x64 -o /app/publish /p:UseAppHost=true && ls -la /app/publish/
 
 # FROM mcr.microsoft.com/dotnet/runtime-deps:8.0 AS final
 FROM alpine:3.20 AS final
