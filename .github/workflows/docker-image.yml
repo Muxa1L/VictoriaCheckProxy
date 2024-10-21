@@ -25,4 +25,6 @@ jobs:
         file: VictoriaCheckProxy/Dockerfile # optional
         # Push is a shorthand for --output=type=registry
         push: true # optional, default is false
-          
+        tags: 
+        - muxa1l/victoriacheckproxy:latest
+        - muxa1l/victoriacheckproxy:${{github.run_number}}
