@@ -13,9 +13,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    # - name: Build the Docker image
-    #   run: docker build . --file VictoriaCheckProxy/Dockerfile --tag muxa1l/victoriacheckproxy:$(date +%s)
+    # - name: Set up Docker Buildx
+    #   uses: docker/setup-buildx-action@v3
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
     - name: Build and push Docker images
       # You may pin to the exact commit or the version.
       # uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75
