@@ -15,7 +15,7 @@ COPY ["VictoriaCheckProxy/VictoriaCheckProxy.csproj", "VictoriaCheckProxy/"]
 RUN dotnet restore "./VictoriaCheckProxy/VictoriaCheckProxy.csproj"
 COPY . .
 WORKDIR "/src/VictoriaCheckProxy"
-RUN dotnet build "./VictoriaCheckProxy.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet build "./VictoriaCheckProxy.csproj" --runtime linux-musl-x64 -c $BUILD_CONFIGURATION -o /app/build
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
