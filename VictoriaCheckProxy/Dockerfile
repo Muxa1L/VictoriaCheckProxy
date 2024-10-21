@@ -22,7 +22,7 @@ ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "./VictoriaCheckProxy.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=true && ls -la /app/publish/
 
 # FROM mcr.microsoft.com/dotnet/runtime-deps:8.0 AS final
-FROM alpine:3.20
+FROM alpine:3.20 AS final
 WORKDIR /app
 COPY --from=publish /app/publish/VictoriaCheckProxy /app/VictoriaCheckProxy
 EXPOSE 8801
