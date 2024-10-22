@@ -133,6 +133,7 @@ namespace VictoriaCheckProxy
                             //tagName = Converter.UnmarshalString(sr);
                             //shift += tagName.Length + 2;
                             break;
+                        case "searchMetricNames_v3":
                         case "labelNames_v5":
                         case "search_v7":
                             stream.ReadExactly(headPart);
