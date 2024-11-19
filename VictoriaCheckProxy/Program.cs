@@ -50,7 +50,8 @@ namespace VictoriaCheckProxy
             {
                 var client = await server.AcceptTcpClientAsync();
                 var cw = new ClientWorking(client, true);
-                Task.Run((Func<Task>)cw.DoSomethingWithClientAsync);
+                var thr = new Thread(cw.DoSomethingWithClientAsync);
+                thr.Start();
             }
         }
     }
@@ -75,7 +76,7 @@ namespace VictoriaCheckProxy
             _ownsClient = ownsClient;
         }
 
-        public async Task DoSomethingWithClientAsync()
+        public async void DoSomethingWithClientAsync()
         {
             
             try
