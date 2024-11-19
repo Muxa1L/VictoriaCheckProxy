@@ -326,7 +326,7 @@ namespace VictoriaCheckProxy
                             zstdMBSent = true;
                         }
                         await stream.WriteAsync(emptyResponse);
-                        Console.WriteLine($"Period {minTs} to {maxTs} not inside selected month. Sending empty response");
+                        //Console.WriteLine($"Period {minTs} to {maxTs} not inside selected month. Sending empty response");
                         //_client.Close();
                     }
 
