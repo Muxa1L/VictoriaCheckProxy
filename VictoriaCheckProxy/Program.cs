@@ -324,7 +324,7 @@ namespace VictoriaCheckProxy
                         if (!zstdMBSent)
                         {
                             await stream.WriteAsync(zstdMagicBytes);
-                            pipe.Writer.AsStream().Write(zstdMagicBytes);
+                            //pipe.Writer.AsStream().Write(zstdMagicBytes);
                             zstdMBSent = true;
                         }
                         await stream.WriteAsync(emptyResponse);
