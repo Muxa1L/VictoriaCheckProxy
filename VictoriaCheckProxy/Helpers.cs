@@ -13,7 +13,7 @@ namespace VictoriaCheckProxy
             sw.Write(Encoding.ASCII.GetBytes(msg));
             if (isDbg)
             {
-                Console.WriteLine($"Sent {msg}");
+                Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId} Sent {msg}");
             }
         }
 
@@ -24,11 +24,11 @@ namespace VictoriaCheckProxy
             var recv = Encoding.UTF8.GetString(buffer);
             if (isDbg)
             {
-                Console.WriteLine($"Got {recv} {rqSize} while awaiting {msg}");
+                Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId} Got {recv} {rqSize} while awaiting {msg}");
             }
             if (recv != msg)
             {
-                throw new Exception($"Говна какая-то {BitConverter.ToString(buffer)} вместо {msg}");
+                throw new Exception($"{Thread.CurrentThread.ManagedThreadId} Говна какая-то {BitConverter.ToString(buffer)} вместо {msg}");
             }
         }
     }

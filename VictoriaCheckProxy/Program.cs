@@ -33,7 +33,7 @@ namespace VictoriaCheckProxy
             storageEP = args[1];
             DateTimeOffset date = DateTime.ParseExact(storedMonth, "yyyy-MM", CultureInfo.InvariantCulture);
             startDate = date.ToUnixTimeMilliseconds();
-            connectionPool = new VMStorageConnectionPool(10);
+            connectionPool = new VMStorageConnectionPool(100);
             //DateTime.Now.Date.AddDays(-DateTime.Now.Day + 1);
 
             endDate = date.AddMonths(1).ToUnixTimeMilliseconds();
@@ -80,7 +80,7 @@ namespace VictoriaCheckProxy
             
             try
             {
-                Console.WriteLine($"connection opened from {_client.Client.RemoteEndPoint.ToString()}");
+                Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId} connection opened from {_client.Client.RemoteEndPoint.ToString()}");
                 using var stream = _client.GetStream();
                 bool zstdMBSent = false;
                 NetworkStream vmstorStream = null;
@@ -129,7 +129,7 @@ namespace VictoriaCheckProxy
                             //bypass = true;
                             Console.WriteLine("Pad: " + BitConverter.ToString(pad));
                             Console.WriteLine("Common: " + BitConverter.ToString(commonPart)); 
-                            throw new Exception($"unsupported method: {method}");
+                            throw new Exception($"{Thread.CurrentThread.ManagedThreadId} unsupported method: {method}");
                             break;
                     }
 
