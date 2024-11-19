@@ -24,6 +24,7 @@ namespace VictoriaCheckProxy
         public static long startDate;
         public static long endDate;
         public static string storageEP;
+        internal static VMStorageConnectionPool connectionPool = null;
         public static async Task Main(string[] args)
         {
             if (args.Length == 0)
@@ -32,7 +33,9 @@ namespace VictoriaCheckProxy
             storageEP = args[1];
             DateTimeOffset date = DateTime.ParseExact(storedMonth, "yyyy-MM", CultureInfo.InvariantCulture);
             startDate = date.ToUnixTimeMilliseconds();
+            connectionPool = new VMStorageConnectionPool(10);
             //DateTime.Now.Date.AddDays(-DateTime.Now.Day + 1);
+
             endDate = date.AddMonths(1).ToUnixTimeMilliseconds();
             await MainAsync();
         }
@@ -52,13 +55,13 @@ namespace VictoriaCheckProxy
         }
     }
 
-    class ClientWorking
+    internal class ClientWorking
     {
         //const string vminsertHello = "vminsert.02";
-        const string vmselectHello = "vmselect.01";
-        const string successResponse = "ok";
+        internal const string vmselectHello = "vmselect.01";
+        internal const string successResponse = "ok";
         //const string searchMethod = "search_v7";
-        const bool isCompressed = true;
+        internal const bool isCompressed = true;
 
         private static readonly byte[] zstdMagicBytes = new byte[] { 0x28, 0xb5, 0x2f, 0xfd, 0x04, 0x60 };
         private static readonly byte[] emptyResponse = new byte[] { 0x44, 0x00, 0x00, 0x08, 0x00, 0x01, 0x54, 0x01, 0x02, 0x14, 0x04 };
@@ -74,41 +77,23 @@ namespace VictoriaCheckProxy
 
         public async Task DoSomethingWithClientAsync()
         {
-            var buffer = ArrayPool<byte>.Shared.Rent(1 * 1024 * 1024);
+            
             try
             {
-                //Console.WriteLine($"connection opened from {_client.Client.RemoteEndPoint.ToString()}");
+                Console.WriteLine($"connection opened from {_client.Client.RemoteEndPoint.ToString()}");
                 using var stream = _client.GetStream();
                 bool zstdMBSent = false;
                 ///Handshake begin 
-                Console.WriteLine("Handshake begin");
-                GetMessage(vmselectHello, stream);
-                SendMessage(successResponse, stream);
+                Helpers.GetMessage(vmselectHello, stream);
+                Helpers.SendMessage(successResponse, stream);
                 byte isRemoteCompressed = (byte)stream.ReadByte();
-                SendMessage(successResponse, stream);
+                Helpers.SendMessage(successResponse, stream);
                 stream.WriteByte(Convert.ToByte(isCompressed));
-                GetMessage(successResponse, stream);
-                Console.WriteLine("Handshake end");
-
-                using TcpClient tcpClient = new TcpClient();
-                tcpClient.ReceiveTimeout = 30 * 1000;
-                tcpClient.Connect(IPEndPoint.Parse(Program.storageEP));
-                 //new byte[64 * 1024 * 1024];
-                //var pipeBuffer = ArrayPool<byte>.Shared.Rent(10 * 1024 * 1024);
-                
-                var vmstorStream = tcpClient.GetStream();
-                //, checkEndOfStream: false, leaveOpen: false))
-                
-                //decomp.SetParameter(ZstdSharp.Unsafe.ZSTD_dParameter.ZSTD_d_windowLogMax, 31);
-                SendMessage(vmselectHello, vmstorStream);
-                GetMessage(successResponse, vmstorStream);
-                vmstorStream.WriteByte(isRemoteCompressed);
-                GetMessage(successResponse, vmstorStream);
-                var comp = vmstorStream.ReadByte();
-                SendMessage(successResponse, vmstorStream);
-                var pipe = new Pipe();
-                using var decomp = new DecompressionStream(pipe.Reader.AsStream());
+                Helpers.GetMessage(successResponse, stream);
+                NetworkStream vmstorStream = null;
                 ///Handshake end 
+                var pipe = new Pipe();
+                var decomp = new DecompressionStream(pipe.Reader.AsStream());
                 while (_client.Connected)
                 {
                     byte[] pad = new byte[6];
@@ -171,6 +156,13 @@ namespace VictoriaCheckProxy
                     if (minTs < Program.endDate && Program.startDate < maxTs)
                     {
                         //Console.WriteLine("Going to vmstorage");
+                        if (vmstorStream == null)
+                        {
+                            vmstorStream = Program.connectionPool.GetClient();
+                        }
+                        
+                        var buffer = ArrayPool<byte>.Shared.Rent(1 * 1024 * 1024);
+
                         zstdMBSent = true;
                         try
                         {
@@ -275,7 +267,7 @@ namespace VictoriaCheckProxy
                                 }
                                 catch (Exception ex)
                                 {
-                                    Console.WriteLine(ex.Message);
+                                    Console.WriteLine("266-" + ex.Message);
                                 }
                                 finally
                                 {
@@ -293,55 +285,69 @@ namespace VictoriaCheckProxy
                                     totalRead += bytesRead;
                                     //Console.WriteLine($"Got {bytesRead} bytes, total {totalRead}");//, clientPipe pos {pipeClient.}, serverPipe pos {pipeServer.Position}");
                                     await stream.WriteAsync(buffer, 0, bytesRead);
+                                    await pipe.Writer.AsStream().WriteAsync(buffer, 0, bytesRead);
                                     //Console.WriteLine($"read: {bytesRead} bytes: {BitConverter.ToString(buffer.Take(bytesRead).ToArray())}");
                                     if (!cts.IsCancellationRequested)
                                     {
-                                        await pipe.Writer.AsStream().WriteAsync(buffer, 0, bytesRead);
+                                        
                                     }
 
                                 }
                             }
-                            
-                            catch (OperationCanceledException) {
+
+                            catch (OperationCanceledException)
+                            {
                                 //Console.WriteLine("Cancelled");
+                            }
+                            catch (SocketException)
+                            {
+
                             }
                             await completion;
                             //Console.WriteLine($"Last read: {bytesRead} Last bytes: {BitConverter.ToString(buffer.Take(bytesRead).ToArray())}");
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine(ex.ToString());
+                            Console.WriteLine("302-" + ex.ToString());
                         }
                         finally
                         {
-                            
+                            ArrayPool<byte>.Shared.Return(buffer);
+                            //Program.connectionPool.ReturnClient(vmstorStream);
                         }
                     }
                     else
                     {
-                        //Console.WriteLine($"Period {minTs} to {maxTs} not inside selected month. Sending empty response");
+                        
                         if (!zstdMBSent)
                         {
                             await stream.WriteAsync(zstdMagicBytes);
+                            pipe.Writer.AsStream().Write(zstdMagicBytes);
                             zstdMBSent = true;
                         }
                         await stream.WriteAsync(emptyResponse);
+                        Console.WriteLine($"Period {minTs} to {maxTs} not inside selected month. Sending empty response");
+                        _client.Close();
                     }
 
                     //stream.Flush();
                     //vmstorStream.Flush();
                     //_client.Close();
 
-                }                
+                }
+                if (vmstorStream != null)
+                {
+                    Program.connectionPool.DestroyClient(vmstorStream);
+                }
             }
             catch (EndOfStreamException) { } //хпуой
             catch (Exception ex)
             {
-                Console.WriteLine(ex.ToString());
+                Console.WriteLine("330-"+ex.ToString());
             }
             finally
             {
-                ArrayPool<byte>.Shared.Return(buffer);
+                
                 if (_ownsClient && _client != null)
                 {
                     Console.WriteLine("connection closed");
@@ -351,20 +357,6 @@ namespace VictoriaCheckProxy
             }
         }
 
-        public static void SendMessage(string msg, Stream sw)
-        {
-            sw.Write(Encoding.ASCII.GetBytes(msg));
-        }
-
-        public static void GetMessage(string msg, Stream sr)
-        {
-            byte[] buffer = new byte[msg.Length];
-            var rqSize = sr.Read(buffer, 0, msg.Length);
-            var recv = Encoding.UTF8.GetString(buffer);
-            if (recv != msg)
-            {
-                throw new Exception($"Говна какая-то {recv} вместо {msg}");
-            }
-        }
+        
     }
 }
