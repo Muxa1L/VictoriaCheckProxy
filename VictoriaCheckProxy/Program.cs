@@ -50,8 +50,7 @@ namespace VictoriaCheckProxy
             {
                 var client = await server.AcceptTcpClientAsync();
                 var cw = new ClientWorking(client, true);
-                var thr = new Thread(cw.DoSomethingWithClientAsync);
-                thr.Start();
+                new Thread(cw.DoSomethingWithClientAsync).Start();
             }
         }
     }
@@ -88,12 +87,12 @@ namespace VictoriaCheckProxy
                 ///Handshake begin 
                 try
                 {
-                    Helpers.GetMessage(vmselectHello, stream, true);
-                    Helpers.SendMessage(successResponse, stream, true);
+                    Helpers.GetMessage(vmselectHello, stream);
+                    Helpers.SendMessage(successResponse, stream);
                     byte isRemoteCompressed = (byte)stream.ReadByte();
-                    Helpers.SendMessage(successResponse, stream, true);
+                    Helpers.SendMessage(successResponse, stream);
                     stream.WriteByte(1);
-                    Helpers.GetMessage(successResponse, stream, true);
+                    Helpers.GetMessage(successResponse, stream);
                 }
                 catch (Exception ex)
                 {
