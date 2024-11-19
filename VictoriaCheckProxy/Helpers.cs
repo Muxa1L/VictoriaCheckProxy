@@ -8,16 +8,24 @@ namespace VictoriaCheckProxy
 {
     public static class Helpers
     {
-        public static void SendMessage(string msg, Stream sw)
+        public static void SendMessage(string msg, Stream sw, bool isDbg = false)
         {
             sw.Write(Encoding.ASCII.GetBytes(msg));
+            if (isDbg)
+            {
+                Console.WriteLine($"Sent {msg}");
+            }
         }
 
-        public static void GetMessage(string msg, Stream sr)
+        public static void GetMessage(string msg, Stream sr, bool isDbg = false)
         {
             byte[] buffer = new byte[msg.Length];
             var rqSize = sr.Read(buffer, 0, msg.Length);
             var recv = Encoding.UTF8.GetString(buffer);
+            if (isDbg)
+            {
+                Console.WriteLine($"Got {recv} {rqSize} while awaiting {msg}");
+            }
             if (recv != msg)
             {
                 throw new Exception($"Говна какая-то {BitConverter.ToString(buffer)} вместо {msg}");

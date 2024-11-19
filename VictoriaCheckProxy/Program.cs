@@ -83,14 +83,14 @@ namespace VictoriaCheckProxy
                 Console.WriteLine($"connection opened from {_client.Client.RemoteEndPoint.ToString()}");
                 using var stream = _client.GetStream();
                 bool zstdMBSent = false;
-                ///Handshake begin 
-                Helpers.GetMessage(vmselectHello, stream);
-                Helpers.SendMessage(successResponse, stream);
-                byte isRemoteCompressed = (byte)stream.ReadByte();
-                Helpers.SendMessage(successResponse, stream);
-                stream.WriteByte(Convert.ToByte(isCompressed));
-                Helpers.GetMessage(successResponse, stream);
                 NetworkStream vmstorStream = null;
+                ///Handshake begin 
+                Helpers.GetMessage(vmselectHello, stream, true);
+                Helpers.SendMessage(successResponse, stream, true);
+                byte isRemoteCompressed = (byte)stream.ReadByte();
+                Helpers.SendMessage(successResponse, stream, true);
+                stream.WriteByte(1);
+                Helpers.GetMessage(successResponse, stream, true);
                 ///Handshake end 
                 var pipe = new Pipe();
                 var decomp = new DecompressionStream(pipe.Reader.AsStream());
