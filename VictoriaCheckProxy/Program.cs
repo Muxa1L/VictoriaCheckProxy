@@ -85,12 +85,24 @@ namespace VictoriaCheckProxy
                 bool zstdMBSent = false;
                 NetworkStream vmstorStream = null;
                 ///Handshake begin 
-                Helpers.GetMessage(vmselectHello, stream, true);
-                Helpers.SendMessage(successResponse, stream, true);
-                byte isRemoteCompressed = (byte)stream.ReadByte();
-                Helpers.SendMessage(successResponse, stream, true);
-                stream.WriteByte(1);
-                Helpers.GetMessage(successResponse, stream, true);
+                try
+                {
+                    Helpers.GetMessage(vmselectHello, stream, true);
+                    Helpers.SendMessage(successResponse, stream, true);
+                    byte isRemoteCompressed = (byte)stream.ReadByte();
+                    Helpers.SendMessage(successResponse, stream, true);
+                    stream.WriteByte(1);
+                    Helpers.GetMessage(successResponse, stream, true);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.ToString() );
+                    var tmp = ArrayPool<byte>.Shared.Rent(256);
+                    
+                    var got = stream.ReadAtLeast(tmp, 8);
+                    Console.WriteLine($"Unread {got} bytes {BitConverter.ToString(tmp)} ");
+                    throw;
+                }                
                 ///Handshake end 
                 var pipe = new Pipe();
                 var decomp = new DecompressionStream(pipe.Reader.AsStream());
