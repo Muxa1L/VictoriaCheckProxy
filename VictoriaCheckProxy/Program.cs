@@ -269,7 +269,7 @@ namespace VictoriaCheckProxy
                                 }
                                 catch (Exception ex)
                                 {
-                                    Console.WriteLine("266-" + ex.Message);
+                                    Console.WriteLine("266-" + ex.Message + "\r\n" + ex.StackTrace);
                                 }
                                 finally
                                 {
@@ -310,7 +310,7 @@ namespace VictoriaCheckProxy
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine("302-" + ex.ToString());
+                            Console.WriteLine("302-" + ex.ToString() + "\r\n" + ex.StackTrace);
                         }
                         finally
                         {
@@ -345,7 +345,7 @@ namespace VictoriaCheckProxy
             catch (EndOfStreamException) { } //хпуой
             catch (Exception ex)
             {
-                Console.WriteLine("330-"+ex.ToString());
+                Console.WriteLine("330-"+ex.ToString() + "\r\n" + ex.StackTrace);
             }
             finally
             {
