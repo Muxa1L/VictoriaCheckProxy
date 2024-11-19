@@ -103,9 +103,9 @@ namespace VictoriaCheckProxy
                     //bool bypass = false;
                     byte[] commonPart = new byte[5];
                     stream.ReadExactly(commonPart); //tracing flag + timeout
-                    byte[] prefix = new byte[0];
+                    byte[] prefix = Array.Empty<byte>();
                     byte[] headPart = new byte[8];
-                    byte[] postfix = new byte[0];
+                    byte[] postfix = Array.Empty<byte>();
 
                     long packetSize = 0;
                     switch (method)
@@ -127,6 +127,8 @@ namespace VictoriaCheckProxy
                             break;
                         default:
                             //bypass = true;
+                            Console.WriteLine("Pad: " + BitConverter.ToString(pad));
+                            Console.WriteLine("Common: " + BitConverter.ToString(commonPart)); 
                             throw new Exception($"unsupported method: {method}");
                             break;
                     }
@@ -141,7 +143,7 @@ namespace VictoriaCheckProxy
                     {
                         case "labelNames_v5":
                         case "labelValues_v5":
-                            postfix = new byte[0];
+                            postfix = new byte[4];
                             stream.ReadExactly(postfix);
                             break;
 
