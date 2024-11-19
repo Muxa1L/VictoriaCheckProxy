@@ -27,6 +27,6 @@ RUN dotnet publish "./VictoriaCheckProxy.csproj" -c $BUILD_CONFIGURATION --runti
 #FROM mcr.microsoft.com/dotnet/runtime-deps:8.0 AS final
 FROM alpine:3.20 AS final
 WORKDIR /app
-COPY --from=publish /app/publish/VictoriaCheckProxy /app/VictoriaCheckProxy
+COPY --from=publish /app/publish/* /app/
 EXPOSE 8801
 ENTRYPOINT ["/app/VictoriaCheckProxy"]
