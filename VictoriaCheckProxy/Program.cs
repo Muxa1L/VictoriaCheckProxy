@@ -340,6 +340,8 @@ namespace VictoriaCheckProxy
                             zstdMBSent = true;
                         }
                         await stream.WriteAsync(emptyResponse);
+                        await stream.FlushAsync();
+                        _client.Client.Shutdown(SocketShutdown.Both);
                         //Console.WriteLine($"Period {minTs} to {maxTs} not inside selected month. Sending empty response");
                         _client.Close();
                     }
