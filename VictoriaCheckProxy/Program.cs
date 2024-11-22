@@ -196,9 +196,7 @@ namespace VictoriaCheckProxy
                                 vmstorageConn.networkStream.Write(postfix);
                             }
                             vmstorageConn.networkStream.Flush();
-                            //Console.WriteLine("Sent request to vmstorage");
-
-                            //Task.Delay(1000);
+                            
                             int bytesRead = 0;
 
                             int totalRead = 0;
@@ -208,39 +206,7 @@ namespace VictoriaCheckProxy
                             int currPos = 0;
                             int blockCount = 0;
                             ulong blockSize = 0;
-                            /*
-                            var completion = Task.Run(() =>
-                            {
-                                int maxDecompressed = 0;
-                                int decompRead = 0;
-                                bool isCompleted = false;
-                                bool startMarkerRead = false;
-                                var decompressed = ArrayPool<byte>.Shared.Rent(1 * 1024 * 1024); // new byte[1024 * 1024];
-
-                                int currPos = 0;
-                                int blockCount = 0;
-                                ulong blockSize = 0;
-                                try
-                                {
-                                    while (!isCompleted)
-                                    {
-                                        //Console.WriteLine("WaitForDecomp");
-                                        
-                                    }
-                                }
-                                catch (Exception ex)
-                                {
-                                    Console.WriteLine("266-" + ex.Message + "\r\n" + ex.StackTrace);
-                                }
-                                finally
-                                {
-                                    ArrayPool<byte>.Shared.Return(decompressed);
-                                }
-
-                                //Console.WriteLine($"Complete. Max Read {maxDecompressed}");
-                                cts.Cancel();
-                            });
-                            */
+                            
                             try
                             {
                                 while (!isCompleted)
@@ -259,9 +225,6 @@ namespace VictoriaCheckProxy
                                     }
 
                                     totalRead += bytesRead;
-                                    //Console.WriteLine($"Got {bytesRead} bytes, total {totalRead}");//, clientPipe pos {pipeClient.}, serverPipe pos {pipeServer.Position}");
-
-                                    //Console.WriteLine($"Decompressed {decompRead}");
                                     if (!startMarkerRead)
                                     {
                                         var empty = Converter.UnmarshalString(buffer);
