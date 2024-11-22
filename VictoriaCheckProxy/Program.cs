@@ -86,7 +86,7 @@ namespace VictoriaCheckProxy
             
             try
             {
-                Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId} connection opened from {_client.Client.RemoteEndPoint.ToString()}");
+                //Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId} connection opened from {_client.Client.RemoteEndPoint.ToString()}");
                 using var stream = _client.GetStream();
                 using var clientCompressor = new CompressionStream(stream, level: Program.compressLevel);
                 ///Handshake begin 
@@ -350,7 +350,7 @@ namespace VictoriaCheckProxy
                 
                 if (_ownsClient && _client != null)
                 {
-                    Console.WriteLine("connection closed");
+                    //Console.WriteLine("connection closed");
                     (_client as IDisposable).Dispose();
                     _client = null;
                 }
