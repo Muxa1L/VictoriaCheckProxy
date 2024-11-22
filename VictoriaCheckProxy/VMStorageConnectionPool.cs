@@ -7,32 +7,70 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
+using ZstdSharp;
 
 namespace VictoriaCheckProxy
 {
+    internal class VMStorageConnection: IDisposable
+    {
+        internal NetworkStream networkStream;
+        internal DecompressionStream decompressor;
+        internal TcpClient tcpClient;
+        public VMStorageConnection()
+        {
+            Console.WriteLine("Creating new client");
+            tcpClient = new TcpClient();
+            tcpClient.ReceiveTimeout = 30 * 1000;
+            tcpClient.Connect(IPEndPoint.Parse(Program.storageEP));
+            //new byte[64 * 1024 * 1024];
+            //var pipeBuffer = ArrayPool<byte>.Shared.Rent(10 * 1024 * 1024);
+
+            networkStream = tcpClient.GetStream();
+            //, checkEndOfStream: false, leaveOpen: false))
+
+            //decomp.SetParameter(ZstdSharp.Unsafe.ZSTD_dParameter.ZSTD_d_windowLogMax, 31);
+            Helpers.SendMessage(ClientWorking.vmselectHello, networkStream);
+            Helpers.GetMessage(ClientWorking.successResponse, networkStream);
+            networkStream.WriteByte(0);
+            Helpers.GetMessage(ClientWorking.successResponse, networkStream);
+            var comp = networkStream.ReadByte();
+            Helpers.SendMessage(ClientWorking.successResponse, networkStream);
+            decompressor = new DecompressionStream(networkStream);
+        }
+
+        public void Dispose()
+        {
+            decompressor.Dispose();
+            networkStream.Dispose();
+            tcpClient.Dispose();
+            decompressor = null;
+            networkStream = null;
+            tcpClient = null;
+        }
+    }
     internal class VMStorageConnectionPool
     {
-        ConcurrentQueue<NetworkStream> connections;
+        ConcurrentQueue<VMStorageConnection> connections;
         //ConcurrentBag<TcpClient> freeConnections;
         readonly int size = 0;
         readonly SemaphoreSlim limit;
         public VMStorageConnectionPool(int size)
         {
-            connections = new ConcurrentQueue<NetworkStream>();
+            connections = new ConcurrentQueue<VMStorageConnection>();
             this.size = size;
             limit = new SemaphoreSlim(size, size);
         }
 
 
-        public NetworkStream GetClient()
+        public VMStorageConnection GetClient()
         {
             limit.Wait();
-            NetworkStream result;
+            VMStorageConnection result;
             if (connections.TryDequeue(out result)) {
                 bool check = false;
                 try
                 {
-                    check = !(result.Socket.Poll(1, SelectMode.SelectRead) && result.Socket.Available == 0);
+                    check = !(result.networkStream.Socket.Poll(1, SelectMode.SelectRead) && result.networkStream.Socket.Available == 0);
                 }
                 catch (SocketException) { check = false; }
                 if (!check)
@@ -44,36 +82,20 @@ namespace VictoriaCheckProxy
             }
             if (result == null) 
             {
-                Console.WriteLine("Creating new client");
-                var tcpClient = new TcpClient();
-                tcpClient.ReceiveTimeout = 30 * 1000;
-                tcpClient.Connect(IPEndPoint.Parse(Program.storageEP));
-                //new byte[64 * 1024 * 1024];
-                //var pipeBuffer = ArrayPool<byte>.Shared.Rent(10 * 1024 * 1024);
-
-                result = tcpClient.GetStream();
-                //, checkEndOfStream: false, leaveOpen: false))
-
-                //decomp.SetParameter(ZstdSharp.Unsafe.ZSTD_dParameter.ZSTD_d_windowLogMax, 31);
-                Helpers.SendMessage(ClientWorking.vmselectHello, result);
-                Helpers.GetMessage(ClientWorking.successResponse, result);
-                result.WriteByte(0);
-                Helpers.GetMessage(ClientWorking.successResponse, result);
-                var comp = result.ReadByte();
-                Helpers.SendMessage(ClientWorking.successResponse, result);
+                result = new VMStorageConnection();
             }
             return result;
         }
-        public void ReturnClient(NetworkStream client)
+        public void ReturnClient(VMStorageConnection client)
         {
             connections.Enqueue(client);
             limit.Release();
         }
 
-        public void DestroyClient(NetworkStream client)
+        public void DestroyClient(VMStorageConnection client)
         {
             limit.Release();
-            client.Close();
+            client.networkStream.Close();
             client.Dispose();
         }
     }

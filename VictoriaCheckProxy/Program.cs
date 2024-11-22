@@ -24,21 +24,28 @@ namespace VictoriaCheckProxy
         public static long startDate;
         public static long endDate;
         public static string storageEP;
+        public static int compressLevel=0;
         internal static VMStorageConnectionPool connectionPool = null;
+
         public static async Task Main(string[] args)
         {
             if (args.Length == 0)
                 throw new Exception("2 args expected");
             var storedMonth = args[0];
             storageEP = args[1];
+            if (args.Length > 2) {
+                compressLevel = int.Parse(args[2]);
+            }
             DateTimeOffset date = DateTime.ParseExact(storedMonth, "yyyy-MM", CultureInfo.InvariantCulture);
             startDate = date.ToUnixTimeMilliseconds();
-            connectionPool = new VMStorageConnectionPool(100);
+            
+            connectionPool = new VMStorageConnectionPool(10);
             //DateTime.Now.Date.AddDays(-DateTime.Now.Day + 1);
-
             endDate = date.AddMonths(1).ToUnixTimeMilliseconds();
             await MainAsync();
         }
+
+        
 
         static async Task MainAsync()
         {
@@ -63,8 +70,7 @@ namespace VictoriaCheckProxy
         //const string searchMethod = "search_v7";
         internal const bool isCompressed = true;
 
-        private static readonly byte[] zstdMagicBytes = new byte[] { 0x28, 0xb5, 0x2f, 0xfd, 0x04, 0x60 };
-        private static readonly byte[] emptyResponse = new byte[] { 0x44, 0x00, 0x00, 0x08, 0x00, 0x01, 0x54, 0x01, 0x02, 0x14, 0x04 };
+        private static readonly byte[] emptyResponse = new byte[24];
 
         TcpClient _client;
         bool _ownsClient;
@@ -82,8 +88,7 @@ namespace VictoriaCheckProxy
             {
                 Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId} connection opened from {_client.Client.RemoteEndPoint.ToString()}");
                 using var stream = _client.GetStream();
-                bool zstdMBSent = false;
-                NetworkStream vmstorStream = null;
+                using var clientCompressor = new CompressionStream(stream, level: Program.compressLevel);
                 ///Handshake begin 
                 try
                 {
@@ -104,8 +109,8 @@ namespace VictoriaCheckProxy
                     throw;
                 }                
                 ///Handshake end 
-                var pipe = new Pipe();
-                var decomp = new DecompressionStream(pipe.Reader.AsStream());
+                //var pipe = new Pipe();
+                //var decomp = new DecompressionStream(pipe.Reader.AsStream());
                 while (_client.Connected)
                 {
                     byte[] pad = new byte[6];
@@ -170,37 +175,40 @@ namespace VictoriaCheckProxy
                     if (minTs < Program.endDate && Program.startDate < maxTs)
                     {
                         //Console.WriteLine("Going to vmstorage");
-                        if (vmstorStream == null)
-                        {
-                            vmstorStream = Program.connectionPool.GetClient();
-                        }
+                        VMStorageConnection vmstorageConn =  Program.connectionPool.GetClient();
                         
                         var buffer = ArrayPool<byte>.Shared.Rent(1 * 1024 * 1024);
 
-                        zstdMBSent = true;
                         try
                         {
                             var cts = new CancellationTokenSource();
-                            vmstorStream.Write(pad);
-                            vmstorStream.Write(Converter.MarshalString(method));
-                            vmstorStream.Write(commonPart);
+                            vmstorageConn.networkStream.Write(pad);
+                            vmstorageConn.networkStream.Write(Converter.MarshalString(method));
+                            vmstorageConn.networkStream.Write(commonPart);
                             if (prefix.Length > 0)
                             {
-                                vmstorStream.Write(prefix);
+                                vmstorageConn.networkStream.Write(prefix);
                             }
-                            vmstorStream.Write(headPart);
-                            vmstorStream.Write(packet);
+                            vmstorageConn.networkStream.Write(headPart);
+                            vmstorageConn.networkStream.Write(packet);
                             if (postfix.Length > 0)
                             {
-                                vmstorStream.Write(postfix);
+                                vmstorageConn.networkStream.Write(postfix);
                             }
-                            vmstorStream.Flush();
+                            vmstorageConn.networkStream.Flush();
                             //Console.WriteLine("Sent request to vmstorage");
 
                             //Task.Delay(1000);
                             int bytesRead = 0;
 
                             int totalRead = 0;
+                            bool isCompleted = false;
+                            bool startMarkerRead = false;
+                            
+                            int currPos = 0;
+                            int blockCount = 0;
+                            ulong blockSize = 0;
+                            /*
                             var completion = Task.Run(() =>
                             {
                                 int maxDecompressed = 0;
@@ -217,66 +225,7 @@ namespace VictoriaCheckProxy
                                     while (!isCompleted)
                                     {
                                         //Console.WriteLine("WaitForDecomp");
-                                        if (currPos < 0)
-                                        {
-                                            currPos = Math.Abs(currPos);
-                                            Array.Copy(decompressed, decompRead - currPos, decompressed, 0, currPos);
-                                            decompRead = decomp.Read(decompressed, currPos, decompressed.Length - currPos);
-                                            decompRead += currPos;
-                                            currPos = 0;
-                                        }
-                                        else
-                                        {
-                                            decompRead = decomp.Read(decompressed);
-                                        }
-
-
-                                        if (decompRead > maxDecompressed)
-                                            maxDecompressed = decompRead;
-                                        //Console.WriteLine($"Decompressed {decompRead}");
-                                        if (!startMarkerRead)
-                                        {
-                                            var empty = Converter.UnmarshalString(decompressed);
-                                            if (empty != "")
-                                            {
-                                                throw new Exception("kaka");
-                                            }
-                                            else
-                                            {
-                                                currPos = 8;
-                                                startMarkerRead = true;
-                                            }
-                                            blockSize = Converter.UnmarshalUint64(decompressed, 8);
-                                            blockCount = 1;
-                                            currPos += 8 + (int)blockSize;
-                                        }
-
-                                        while (currPos < decompRead - 8 && blockSize != 0)
-                                        {
-                                            blockSize = Converter.UnmarshalUint64(decompressed, currPos);
-                                            currPos = currPos + 8 + (int)blockSize;
-                                            blockCount++;
-                                        }
-                                        if (blockSize == 0)
-                                        {
-                                            //Console.WriteLine("Empty block");
-                                        }
-                                        if (decompRead - currPos == 8)
-                                        {
-                                            try
-                                            {
-                                                var complete = Converter.UnmarshalLongString(decompressed, decompRead - 8);
-                                                if (complete == "")
-                                                {
-                                                    isCompleted = true;
-                                                }
-                                            }
-                                            catch (Exception) { }
-                                        }
-                                        else
-                                        {
-                                            currPos = currPos - decompRead;
-                                        }
+                                        
                                     }
                                 }
                                 catch (Exception ex)
@@ -291,34 +240,83 @@ namespace VictoriaCheckProxy
                                 //Console.WriteLine($"Complete. Max Read {maxDecompressed}");
                                 cts.Cancel();
                             });
+                            */
                             try
                             {
-                                //Console.WriteLine("Reading response from vmstorage");
-                                while ((bytesRead = await vmstorStream.ReadAsync(buffer, cts.Token)) > 0)
+                                while (!isCompleted)
                                 {
+                                    if (currPos < 0)
+                                    {
+                                        currPos = Math.Abs(currPos);
+                                        Array.Copy(buffer, bytesRead - currPos, buffer, 0, currPos);
+                                        bytesRead = vmstorageConn.decompressor.Read(buffer, currPos, buffer.Length - currPos);
+                                        bytesRead += currPos;
+                                        currPos = 0;
+                                    }
+                                    else
+                                    {
+                                        bytesRead = vmstorageConn.decompressor.Read(buffer);
+                                    }
+
                                     totalRead += bytesRead;
                                     //Console.WriteLine($"Got {bytesRead} bytes, total {totalRead}");//, clientPipe pos {pipeClient.}, serverPipe pos {pipeServer.Position}");
-                                    await stream.WriteAsync(buffer, 0, bytesRead);
-                                    await pipe.Writer.AsStream().WriteAsync(buffer, 0, bytesRead);
-                                    //Console.WriteLine($"read: {bytesRead} bytes: {BitConverter.ToString(buffer.Take(bytesRead).ToArray())}");
+
+                                    //Console.WriteLine($"Decompressed {decompRead}");
+                                    if (!startMarkerRead)
+                                    {
+                                        var empty = Converter.UnmarshalString(buffer);
+                                        if (empty != "")
+                                        {
+                                            throw new Exception("kaka");
+                                        }
+                                        else
+                                        {
+                                            currPos = 8;
+                                            startMarkerRead = true;
+                                        }
+                                        blockSize = Converter.UnmarshalUint64(buffer, 8);
+                                        blockCount = 1;
+                                        currPos += 8 + (int)blockSize;
+                                    }
+
+                                    while (currPos < bytesRead - 8 && blockSize != 0)
+                                    {
+                                        blockSize = Converter.UnmarshalUint64(buffer, currPos);
+                                        currPos = currPos + 8 + (int)blockSize;
+                                        blockCount++;
+                                    }
+                                    if (blockSize == 0)
+                                    {
+                                        //Console.WriteLine("Empty block");
+                                    }
+                                    if (bytesRead - currPos == 8)
+                                    {
+                                        try
+                                        {
+                                            var complete = Converter.UnmarshalLongString(buffer, bytesRead - 8);
+                                            if (complete == "")
+                                            {
+                                                isCompleted = true;
+                                            }
+                                        }
+                                        catch (Exception) { }
+                                    }
+                                    else
+                                    {
+                                        currPos = currPos - bytesRead;
+                                    }
+                                    clientCompressor.Write(buffer, 0, bytesRead);
+                                    clientCompressor.Flush();
                                     if (!cts.IsCancellationRequested)
                                     {
-                                        
+
                                     }
 
                                 }
                             }
 
-                            catch (OperationCanceledException)
-                            {
-                                //Console.WriteLine("Cancelled");
-                            }
-                            catch (SocketException)
-                            {
-
-                            }
-                            await completion;
-                            //Console.WriteLine($"Last read: {bytesRead} Last bytes: {BitConverter.ToString(buffer.Take(bytesRead).ToArray())}");
+                            catch (OperationCanceledException) { }
+                            catch (SocketException) { }
                         }
                         catch (Exception ex)
                         {
@@ -327,33 +325,19 @@ namespace VictoriaCheckProxy
                         finally
                         {
                             ArrayPool<byte>.Shared.Return(buffer);
-                            //Program.connectionPool.ReturnClient(vmstorStream);
+                            Program.connectionPool.ReturnClient(vmstorageConn);
                         }
                     }
                     else
                     {
-                        
-                        if (!zstdMBSent)
-                        {
-                            await stream.WriteAsync(zstdMagicBytes);
-                            //pipe.Writer.AsStream().Write(zstdMagicBytes);
-                            zstdMBSent = true;
-                        }
-                        await stream.WriteAsync(emptyResponse);
-                        await stream.FlushAsync();
-                        _client.Client.Shutdown(SocketShutdown.Both);
-                        //Console.WriteLine($"Period {minTs} to {maxTs} not inside selected month. Sending empty response");
-                        _client.Close();
+                        clientCompressor.Write(emptyResponse);       
+                        clientCompressor.Flush();
                     }
 
                     //stream.Flush();
                     //vmstorStream.Flush();
                     //_client.Close();
 
-                }
-                if (vmstorStream != null)
-                {
-                    Program.connectionPool.DestroyClient(vmstorStream);
                 }
             }
             catch (EndOfStreamException) { } //хпуой
