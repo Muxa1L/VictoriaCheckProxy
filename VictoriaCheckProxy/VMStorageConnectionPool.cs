@@ -20,7 +20,7 @@ namespace VictoriaCheckProxy
         {
             Console.WriteLine("Creating new client");
             tcpClient = new TcpClient();
-            tcpClient.ReceiveTimeout = 30 * 1000;
+            //tcpClient.ReceiveTimeout = 60 * 1000;
             tcpClient.Connect(IPEndPoint.Parse(Program.storageEP));
             //new byte[64 * 1024 * 1024];
             //var pipeBuffer = ArrayPool<byte>.Shared.Rent(10 * 1024 * 1024);
@@ -35,7 +35,7 @@ namespace VictoriaCheckProxy
             Helpers.GetMessage(ClientWorking.successResponse, networkStream);
             var comp = networkStream.ReadByte();
             Helpers.SendMessage(ClientWorking.successResponse, networkStream);
-            decompressor = new DecompressionStream(networkStream);
+            decompressor = new DecompressionStream(networkStream, 10 * 1024 * 1024);
         }
 
         public void Dispose()

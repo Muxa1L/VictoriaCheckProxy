@@ -177,7 +177,7 @@ namespace VictoriaCheckProxy
                         //Console.WriteLine("Going to vmstorage");
                         VMStorageConnection vmstorageConn =  Program.connectionPool.GetClient();
                         
-                        var buffer = ArrayPool<byte>.Shared.Rent(1 * 1024 * 1024);
+                        var buffer = ArrayPool<byte>.Shared.Rent(10 * 1024 * 1024);
 
                         try
                         {
