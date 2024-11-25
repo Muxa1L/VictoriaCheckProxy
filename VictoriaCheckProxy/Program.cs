@@ -230,7 +230,7 @@ namespace VictoriaCheckProxy
                                         var empty = Converter.UnmarshalString(buffer);
                                         if (empty != "")
                                         {
-                                            throw new Exception("kaka");
+                                            throw new Exception("kaka" + empty);
                                         }
                                         else
                                         {
