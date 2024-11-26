@@ -140,16 +140,20 @@ namespace VictoriaCheckProxy
                         case "labelNames_v5":
                         case "search_v7":
                         case "tsdbStatus_v5":
+                        //case "tenants_v1":
                             stream.ReadExactly(headPart);
                             packetSize = BinaryPrimitives.ReverseEndianness(BitConverter.ToInt64(headPart));
-                            //bypass = false;
+                            break;
+                        case "tenants_v1":
+                            packetSize = 16;
                             break;
                         default:
                             //bypass = true;
                             Console.WriteLine("Pad: " + BitConverter.ToString(pad));
-                            Console.WriteLine("Common: " + BitConverter.ToString(commonPart)); 
+                            Console.WriteLine("Common: " + BitConverter.ToString(commonPart));
+                            //_client.Client.Shutdown(SocketShutdown.Both);
                             throw new Exception($"{Thread.CurrentThread.ManagedThreadId} unsupported method: {method}");
-                            break;
+                            
                     }
 
                     //bool traceEnabled = sr.ReadBoolean();
@@ -172,20 +176,22 @@ namespace VictoriaCheckProxy
                             break;
 
                     }
-                    var accountId = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt32(packet, 0));
-                    var projectId = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt32(packet, 4));
-                    var lastPos = 8;
+                    int lastPos = 0;
+                    if (method != "tenants_v1")
+                    {
+                        var accountId = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt32(packet, 0));
+                        var projectId = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt32(packet, 4));
+                        lastPos = 8;
+                    }
+                    
                     long minTs = long.MinValue;
                     long maxTs = long.MaxValue;
                     lastPos += Converter.UnmarshalVarInt64(packet, ref minTs, lastPos);
                     lastPos += Converter.UnmarshalVarInt64(packet, ref maxTs, lastPos);
                     if (minTs < Program.endDate && Program.startDate < maxTs && !rejectedMethod)
                     {
-                        //Console.WriteLine("Going to vmstorage");
                         VMStorageConnection vmstorageConn =  Program.connectionPool.GetClient();
-                        
                         var buffer = ArrayPool<byte>.Shared.Rent(10 * 1024 * 1024);
-
                         try
                         {
                             var cts = new CancellationTokenSource();
@@ -300,7 +306,15 @@ namespace VictoriaCheckProxy
                     }
                     else
                     {
-                        clientCompressor.Write(emptyResponse);       
+                        clientCompressor.Write(emptyResponse);
+                        switch (method)
+                        {
+                            case "tsdbStatus_v5":
+                                clientCompressor.Write(emptyResponse);
+                                clientCompressor.Write(emptyResponse);
+                                break;
+                            //case "tenants_v1"
+                        }
                         clientCompressor.Flush();
                     }
 
@@ -320,7 +334,7 @@ namespace VictoriaCheckProxy
                 
                 if (_ownsClient && _client != null)
                 {
-                    //Console.WriteLine("connection closed");
+                    Console.WriteLine("connection closed");
                     (_client as IDisposable).Dispose();
                     _client = null;
                 }
