@@ -25,6 +25,7 @@ namespace VictoriaCheckProxy
         public static long endDate;
         public static string storageEP;
         public static int compressLevel=0;
+        public static int connectionLimit = 5;
         internal static VMStorageConnectionPool connectionPool = null;
 
         public static async Task Main(string[] args)
@@ -36,10 +37,14 @@ namespace VictoriaCheckProxy
             if (args.Length > 2) {
                 compressLevel = int.Parse(args[2]);
             }
+            if (args.Length > 3)
+            {
+                connectionLimit = int.Parse(args[3]);
+            }
             DateTimeOffset date = DateTime.ParseExact(storedMonth, "yyyy-MM", CultureInfo.InvariantCulture);
             startDate = date.ToUnixTimeMilliseconds();
             
-            connectionPool = new VMStorageConnectionPool(10);
+            connectionPool = new VMStorageConnectionPool(connectionLimit);
             //DateTime.Now.Date.AddDays(-DateTime.Now.Day + 1);
             endDate = date.AddMonths(1).ToUnixTimeMilliseconds();
             await MainAsync();
