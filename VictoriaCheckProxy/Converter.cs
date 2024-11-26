@@ -11,37 +11,17 @@ namespace VictoriaCheckProxy
 {
     internal class Converter
     {
-        public static string UnmarshalString(BinaryReader reader)
-        {
-            UInt16 length = Converter.UnmarshalUint16(reader);
-            var bytes = reader.ReadBytes(length);
-            return Encoding.UTF8.GetString(bytes);
-        }
-
+        
         public static string UnmarshalString(Stream reader)
         {
             UInt16 length = Converter.UnmarshalUint16(reader);
-            var bytes = ArrayPool<byte>.Shared.Rent(16*1024);
+            var bytes = ArrayPool<byte>.Shared.Rent(128);
             reader.ReadExactly(bytes, 0, length);
             var result = Encoding.UTF8.GetString(bytes, 0, length);
             ArrayPool<byte>.Shared.Return(bytes);
             return result;
         }
 
-        public static async Task<string> UnmarshalStringAsync(Stream reader)
-        {
-            UInt16 length = await Converter.UnmarshalUint16Async(reader);
-            var bytes = new byte[length];
-            await reader.ReadExactlyAsync(bytes);
-            return Encoding.UTF8.GetString(bytes);
-        }
-
-        public static string UnmarshalLongString(BinaryReader reader)
-        {
-            UInt64 length = Converter.UnmarshalUint64(reader);
-            var bytes = reader.ReadBytes((int)length);
-            return Encoding.UTF8.GetString(bytes);
-        }
 
         public static string UnmarshalLongString(byte[] buffer, int start = 0)
         {
@@ -49,16 +29,7 @@ namespace VictoriaCheckProxy
             return Encoding.UTF8.GetString(buffer, start + 8, (int)length);
         }
 
-        public static byte[] ReadLongString(BinaryReader reader)
-        {
-            UInt64 length = Converter.UnmarshalUint64(reader);
-            byte[] buf = new byte[length + 8];
-
-            MarshalUint64(length).CopyTo(buf, 0);
-            
-            reader.Read(buf, 8, (int)length);
-            return buf;
-        }
+        
 
         public static byte[] ReadLongString(Stream reader)
         {
@@ -99,18 +70,6 @@ namespace VictoriaCheckProxy
         }
 
 
-        public static ushort UnmarshalUint16(BinaryReader reader)
-        {
-            /*if (BitConverter.IsLittleEndian)
-                span.Reverse();*/
-            var bytes = reader.ReadBytes(2);
-            var tmp = bytes[0];
-            bytes[0] = bytes[1];
-            bytes[1] = tmp;
-            return BitConverter.ToUInt16(bytes, 0);
-            //return reader.ReadUInt16();
-        }
-
         public static ushort UnmarshalUint16(Stream reader)
         {
             /*if (BitConverter.IsLittleEndian)
@@ -126,19 +85,6 @@ namespace VictoriaCheckProxy
             //return reader.ReadUInt16();
         }
 
-        public static async Task<ushort> UnmarshalUint16Async(Stream reader)
-        {
-            /*if (BitConverter.IsLittleEndian)
-                span.Reverse();*/
-            var bytes = new byte[2];
-            await reader.ReadExactlyAsync(bytes);
-            var tmp = bytes[0];
-            bytes[0] = bytes[1];
-            bytes[1] = tmp;
-            return BitConverter.ToUInt16(bytes, 0);
-            //return reader.ReadUInt16();
-        }
-
         public static uint UnmarshalUint32(Stream reader)
         {
             var bytes = ArrayPool<byte>.Shared.Rent(4);
@@ -146,16 +92,6 @@ namespace VictoriaCheckProxy
             var result = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt32(bytes, 0));
             ArrayPool<byte>.Shared.Return(bytes);
             return result;
-        }
-
-        public static ulong UnmarshalUint64(BinaryReader reader)
-        {
-            /*if (BitConverter.IsLittleEndian)
-                span.Reverse();*/
-            var bytes = reader.ReadBytes(8);
-            
-            return BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt64(bytes, 0));
-            //return reader.ReadUInt16();
         }
 
         public static ulong UnmarshalUint64(Stream reader)
