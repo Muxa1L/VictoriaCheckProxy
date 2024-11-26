@@ -334,7 +334,7 @@ namespace VictoriaCheckProxy
                 
                 if (_ownsClient && _client != null)
                 {
-                    Console.WriteLine("connection closed");
+                    //Console.WriteLine("connection closed");
                     (_client as IDisposable).Dispose();
                     _client = null;
                 }
