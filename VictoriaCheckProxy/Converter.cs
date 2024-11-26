@@ -134,6 +134,14 @@ namespace VictoriaCheckProxy
             //return reader.ReadUInt16();
         }
 
+        public static uint UnmarshalUint32(Stream reader)
+        {
+            var bytes = new byte[4];
+            reader.ReadExactly(bytes);
+
+            return BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt32(bytes, 0));
+        }
+
         public static ulong UnmarshalUint64(BinaryReader reader)
         {
             /*if (BitConverter.IsLittleEndian)
