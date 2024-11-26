@@ -22,7 +22,7 @@ namespace VictoriaCheckProxy
         {
             UInt16 length = Converter.UnmarshalUint16(reader);
             var bytes = ArrayPool<byte>.Shared.Rent(16*1024);
-            reader.Read(bytes, 0, length);
+            reader.ReadExactly(bytes, 0, length);
             var result = Encoding.UTF8.GetString(bytes, 0, length);
             ArrayPool<byte>.Shared.Return(bytes);
             return result;
@@ -116,7 +116,7 @@ namespace VictoriaCheckProxy
             /*if (BitConverter.IsLittleEndian)
                 span.Reverse();*/
             var bytes = ArrayPool<byte>.Shared.Rent(2);
-            reader.ReadExactly(bytes);
+            reader.ReadExactly(bytes, 0, 2);
             var tmp = bytes[0];
             bytes[0] = bytes[1];
             bytes[1] = tmp;
@@ -142,7 +142,7 @@ namespace VictoriaCheckProxy
         public static uint UnmarshalUint32(Stream reader)
         {
             var bytes = ArrayPool<byte>.Shared.Rent(4);
-            reader.ReadExactly(bytes);
+            reader.ReadExactly(bytes, 0, 4);
             var result = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt32(bytes, 0));
             ArrayPool<byte>.Shared.Return(bytes);
             return result;
@@ -163,7 +163,7 @@ namespace VictoriaCheckProxy
             /*if (BitConverter.IsLittleEndian)
                 span.Reverse();*/
             var bytes = ArrayPool<byte>.Shared.Rent(8);
-            reader.ReadExactly(bytes);
+            reader.ReadExactly(bytes, 0, 8);
 
             var result = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt64(bytes, 0));
             ArrayPool<byte>.Shared.Return(bytes);
