@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,9 +21,11 @@ namespace VictoriaCheckProxy
         public static string UnmarshalString(Stream reader)
         {
             UInt16 length = Converter.UnmarshalUint16(reader);
-            var bytes = new byte[length];
-            reader.ReadExactly(bytes);
-            return Encoding.UTF8.GetString(bytes);
+            var bytes = ArrayPool<byte>.Shared.Rent(16*1024);
+            reader.Read(bytes, 0, length);
+            var result = Encoding.UTF8.GetString(bytes, 0, length);
+            ArrayPool<byte>.Shared.Return(bytes);
+            return result;
         }
 
         public static async Task<string> UnmarshalStringAsync(Stream reader)
@@ -112,12 +115,14 @@ namespace VictoriaCheckProxy
         {
             /*if (BitConverter.IsLittleEndian)
                 span.Reverse();*/
-            var bytes = new byte[2];
+            var bytes = ArrayPool<byte>.Shared.Rent(2);
             reader.ReadExactly(bytes);
             var tmp = bytes[0];
             bytes[0] = bytes[1];
             bytes[1] = tmp;
-            return BitConverter.ToUInt16(bytes, 0);
+            var result = BitConverter.ToUInt16(bytes, 0);
+            ArrayPool<byte>.Shared.Return(bytes);
+            return result;
             //return reader.ReadUInt16();
         }
 
@@ -136,10 +141,11 @@ namespace VictoriaCheckProxy
 
         public static uint UnmarshalUint32(Stream reader)
         {
-            var bytes = new byte[4];
+            var bytes = ArrayPool<byte>.Shared.Rent(4);
             reader.ReadExactly(bytes);
-
-            return BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt32(bytes, 0));
+            var result = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt32(bytes, 0));
+            ArrayPool<byte>.Shared.Return(bytes);
+            return result;
         }
 
         public static ulong UnmarshalUint64(BinaryReader reader)
@@ -156,11 +162,12 @@ namespace VictoriaCheckProxy
         {
             /*if (BitConverter.IsLittleEndian)
                 span.Reverse();*/
-            var bytes = new byte[8];
+            var bytes = ArrayPool<byte>.Shared.Rent(8);
             reader.ReadExactly(bytes);
 
-            return BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt64(bytes, 0));
-            //return reader.ReadUInt16();
+            var result = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt64(bytes, 0));
+            ArrayPool<byte>.Shared.Return(bytes);
+            return result;
         }
 
         public static async Task<ulong> UnmarshalUint64Async(Stream reader)
