@@ -152,12 +152,12 @@ namespace VictoriaCheckProxy
                             break;
                         default:
                             //bypass = true;
-                            logger.LogError("Pad: " + BitConverter.ToString(pad) + "\r\n" + "Common: " + BitConverter.ToString(commonPart));
+                            logger.LogError("Pad: {}\r\n Common: {}" , BitConverter.ToString(pad), BitConverter.ToString(commonPart));
                             //_client.Client.Shutdown(SocketShutdown.Both);
-                            throw new Exception($"{Thread.CurrentThread.ManagedThreadId} unsupported method: {method}");
+                            throw new Exception($"unsupported method: {method}");
                             
                     }
-                    logger.LogDebug($"Method: {method} with packet size {packetSize}");
+                    logger.LogDebug("Method: {} with packet size {}", method, packetSize);
                     //bool traceEnabled = sr.ReadBoolean();
                     //uint timeout = BinaryPrimitives.ReverseEndianness(sr.ReadUInt32());
                     //long packetSize = BinaryPrimitives.ReverseEndianness(sr.ReadInt64());
@@ -192,7 +192,7 @@ namespace VictoriaCheckProxy
                     long maxTs = long.MaxValue;
                     lastPos += Converter.UnmarshalVarInt64(packet, ref minTs, lastPos);
                     lastPos += Converter.UnmarshalVarInt64(packet, ref maxTs, lastPos);
-                    logger.LogDebug($"From query got tenant {accountId}:{projectId} from {minTs} to {maxTs}");
+                    logger.LogDebug("From query got tenant {accountId}:{projectId} from {minTs} to {maxTs}", accountId, projectId, minTs, maxTs);
                     if (minTs < Program.endDate && Program.startDate < maxTs && !rejectedMethod)
                     {
                         
@@ -217,7 +217,7 @@ namespace VictoriaCheckProxy
                                 //ArrayPool<byte>.Shared.Return(postfix);
                             }
                             vmstorageConn.networkStream.Flush();
-                            logger.LogDebug($"Sent query to vmstorage");
+                            logger.LogDebug("Sent query to vmstorage");
                             int bytesRead = 0;
 
                             int totalRead = 0;
@@ -232,7 +232,7 @@ namespace VictoriaCheckProxy
                                 clientCompressor.Write(errorMessage);
                                 //ArrayPool<byte>.Shared.Return(errorMessage);
                                 blockSize = Converter.UnmarshalUint64(vmstorageConn.decompressor);
-                                logger.LogDebug($"First block size {blockSize}");
+                                logger.LogDebug("First block size {blockSize}", blockSize);
                                 clientCompressor.Write(Converter.MarshalUint64(blockSize));
                                 blockCount = 1;
                                 while (blockSize > 0) {
@@ -255,7 +255,7 @@ namespace VictoriaCheckProxy
                                     if (blockSize == 0) {
                                         blockSize = Converter.UnmarshalUint64(vmstorageConn.decompressor);
                                         clientCompressor.Write(Converter.MarshalUint64(blockSize));
-                                        logger.LogDebug($"New block size {blockSize}");
+                                        logger.LogDebug("New block size {blockSize}", blockSize);
                                     }
                                     /*if (blockSize == 0)
                                     {
