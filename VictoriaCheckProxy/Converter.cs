@@ -34,7 +34,7 @@ namespace VictoriaCheckProxy
         public static byte[] ReadLongString(Stream reader)
         {
             UInt64 length = Converter.UnmarshalUint64(reader);
-            byte[] buf = new byte[length + 8];
+            byte[] buf = ArrayPool<byte>.Shared.Rent((int)(length + 8)); // new byte[length + 8];
 
             MarshalUint64(length).CopyTo(buf, 0);
 

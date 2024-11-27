@@ -171,7 +171,7 @@ namespace VictoriaCheckProxy
                     {
                         case "labelNames_v5":
                         case "labelValues_v5":
-                            postfix = new byte[4];
+                            postfix = ArrayPool<byte>.Shared.Rent(4);
                             stream.ReadExactly(postfix);
                             break;
                         case "tsdbStatus_v5":
@@ -206,20 +206,20 @@ namespace VictoriaCheckProxy
                             if (prefix.Length > 0)
                             {
                                 vmstorageConn.networkStream.Write(prefix);
+                                ArrayPool<byte>.Shared.Return(prefix);
                             }
                             vmstorageConn.networkStream.Write(headPart);
                             vmstorageConn.networkStream.Write(packet);
                             if (postfix.Length > 0)
                             {
                                 vmstorageConn.networkStream.Write(postfix);
+                                ArrayPool<byte>.Shared.Return(postfix);
                             }
                             vmstorageConn.networkStream.Flush();
                             
                             int bytesRead = 0;
 
                             int totalRead = 0;
-                            bool isCompleted = false;
-                            bool startMarkerRead = false;
                             
                             int currPos = 0;
                             int blockCount = 0;
@@ -227,73 +227,45 @@ namespace VictoriaCheckProxy
                             
                             try
                             {
-                                while (!isCompleted)
-                                {
-                                    if (currPos < 0)
+                                var errorMessage = Converter.ReadLongString(vmstorageConn.decompressor);
+                                clientCompressor.Write(errorMessage);
+                                ArrayPool<byte>.Shared.Return(errorMessage);
+                                blockSize = Converter.UnmarshalUint64(vmstorageConn.decompressor);
+                                //Console.WriteLine($"First block size {blockSize}");
+                                clientCompressor.Write(Converter.MarshalUint64(blockSize));
+                                blockCount = 1;
+                                while (blockSize > 0) {
+                                    if (blockSize > (ulong) buffer.Length)
                                     {
-                                        currPos = Math.Abs(currPos);
-                                        Array.Copy(buffer, bytesRead - currPos, buffer, 0, currPos);
-                                        bytesRead = vmstorageConn.decompressor.Read(buffer, currPos, buffer.Length - currPos);
-                                        bytesRead += currPos;
-                                        currPos = 0;
+                                        //Console.WriteLine("Block size too large for one read");
+                                        vmstorageConn.decompressor.ReadExactly(buffer);
+                                        blockSize -= (ulong)buffer.Length;
+                                        bytesRead = buffer.Length;
+                                        //Console.WriteLine("Block size too large for one read");
                                     }
                                     else
                                     {
-                                        bytesRead = vmstorageConn.decompressor.Read(buffer);
+                                        vmstorageConn.decompressor.ReadExactly(buffer, 0, (int)blockSize);
+                                        bytesRead = (int)blockSize;
+                                        blockSize = 0;   
                                     }
-
-                                    totalRead += bytesRead;
-                                    if (!startMarkerRead)
-                                    {
-                                        var empty = Converter.UnmarshalString(buffer);
-                                        if (empty != "")
-                                        {
-                                            throw new Exception("kaka" + empty);
-                                        }
-                                        else
-                                        {
-                                            currPos = 8;
-                                            startMarkerRead = true;
-                                        }
-                                        blockSize = Converter.UnmarshalUint64(buffer, 8);
-                                        blockCount = 1;
-                                        currPos += 8 + (int)blockSize;
-                                    }
-
-                                    while (currPos < bytesRead - 8 && blockSize != 0)
-                                    {
-                                        blockSize = Converter.UnmarshalUint64(buffer, currPos);
-                                        currPos = currPos + 8 + (int)blockSize;
-                                        blockCount++;
-                                    }
-                                    if (blockSize == 0)
-                                    {
-                                        //Console.WriteLine("Empty block");
-                                    }
-                                    if (bytesRead - currPos == 8)
-                                    {
-                                        try
-                                        {
-                                            var complete = Converter.UnmarshalLongString(buffer, bytesRead - 8);
-                                            if (complete == "")
-                                            {
-                                                isCompleted = true;
-                                            }
-                                        }
-                                        catch (Exception) { }
-                                    }
-                                    else
-                                    {
-                                        currPos = currPos - bytesRead;
-                                    }
+                                    
                                     clientCompressor.Write(buffer, 0, bytesRead);
-                                    clientCompressor.Flush();
-                                    if (!cts.IsCancellationRequested)
-                                    {
-
+                                    
+                                    if (blockSize == 0) {
+                                        blockSize = Converter.UnmarshalUint64(vmstorageConn.decompressor);
+                                        clientCompressor.Write(Converter.MarshalUint64(blockSize));
+                                        //Console.WriteLine($"New block size {blockSize}");
                                     }
-
+                                    /*if (blockSize == 0)
+                                    {
+                                        Console.WriteLine("new block is empty!");
+                                    }*/
                                 }
+                                var complete = Converter.ReadLongString(vmstorageConn.decompressor);
+                                clientCompressor.Write(complete);
+                                ArrayPool<byte>.Shared.Return(errorMessage);
+                                clientCompressor.Flush();
                             }
 
                             catch (OperationCanceledException) { }
