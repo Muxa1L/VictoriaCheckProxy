@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections;
@@ -27,6 +28,7 @@ namespace VictoriaCheckProxy
         public static int compressLevel=0;
         public static int connectionLimit = 5;
         internal static VMStorageConnectionPool connectionPool = null;
+        public static ILoggerFactory factory;
 
         public static async Task Main(string[] args)
         {
@@ -41,30 +43,26 @@ namespace VictoriaCheckProxy
             {
                 connectionLimit = int.Parse(args[3]);
             }
+            factory = LoggerFactory.Create(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Error));
             DateTimeOffset date = DateTime.ParseExact(storedMonth, "yyyy-MM", CultureInfo.InvariantCulture);
+            var logger = factory.CreateLogger("Main");
             startDate = date.ToUnixTimeMilliseconds();
             
             connectionPool = new VMStorageConnectionPool(connectionLimit);
             //DateTime.Now.Date.AddDays(-DateTime.Now.Day + 1);
             endDate = date.AddMonths(1).ToUnixTimeMilliseconds();
-            await MainAsync();
-        }
-
-        
-
-        static async Task MainAsync()
-        {
-            Console.WriteLine("Starting...");
+            logger.LogInformation("starting reception");
             var server = new TcpListener(IPAddress.Any, 8801);
             server.Start();
-            Console.WriteLine("Started.");
+            logger.LogInformation("started reception");
             while (true)
             {
                 var client = await server.AcceptTcpClientAsync();
                 var cw = new ClientWorking(client, true);
-                new Thread(cw.DoSomethingWithClientAsync).Start();
+                new Thread(cw.ClientWorker).Start();
             }
         }
+
     }
 
     internal class ClientWorking
@@ -86,9 +84,9 @@ namespace VictoriaCheckProxy
             _ownsClient = ownsClient;
         }
 
-        public async void DoSomethingWithClientAsync()
+        public async void ClientWorker()
         {
-            
+            var logger = Program.factory.CreateLogger("ClientWorker");
             try
             {
                 //Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId} connection opened from {_client.Client.RemoteEndPoint.ToString()}");
@@ -106,29 +104,29 @@ namespace VictoriaCheckProxy
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine(ex.ToString() );
                     var tmp = ArrayPool<byte>.Shared.Rent(256);
-                    
                     var got = stream.ReadAtLeast(tmp, 8);
-                    Console.WriteLine($"Unread {got} bytes {BitConverter.ToString(tmp)} ");
+                    logger.LogError(ex, $"Unread {got} bytes {BitConverter.ToString(tmp)} ");
                     throw;
-                }                
+                }
                 ///Handshake end 
                 //var pipe = new Pipe();
                 //var decomp = new DecompressionStream(pipe.Reader.AsStream());
+                byte[] pad = new byte[6];
+                byte[] commonPart = new byte[5];
+                byte[] headPart = new byte[8];
+                
                 while (_client.Connected)
                 {
                     var rejectedMethod = false;
-                    byte[] pad = new byte[6];
+                    byte[] postfix = Array.Empty<byte>();
+                    byte[] prefix = Array.Empty<byte>();
                     stream.ReadExactly(pad);
 
                     string method = Converter.UnmarshalString(stream);
+                    
                     //bool bypass = false;
-                    byte[] commonPart = new byte[5];
                     stream.ReadExactly(commonPart); //tracing flag + timeout
-                    byte[] prefix = Array.Empty<byte>();
-                    byte[] headPart = new byte[8];
-                    byte[] postfix = Array.Empty<byte>();
 
                     long packetSize = 0;
                     switch (method)
@@ -154,24 +152,23 @@ namespace VictoriaCheckProxy
                             break;
                         default:
                             //bypass = true;
-                            Console.WriteLine("Pad: " + BitConverter.ToString(pad));
-                            Console.WriteLine("Common: " + BitConverter.ToString(commonPart));
+                            logger.LogError("Pad: " + BitConverter.ToString(pad) + "\r\n" + "Common: " + BitConverter.ToString(commonPart));
                             //_client.Client.Shutdown(SocketShutdown.Both);
                             throw new Exception($"{Thread.CurrentThread.ManagedThreadId} unsupported method: {method}");
                             
                     }
-
+                    logger.LogDebug($"Method: {method} with packet size {packetSize}");
                     //bool traceEnabled = sr.ReadBoolean();
                     //uint timeout = BinaryPrimitives.ReverseEndianness(sr.ReadUInt32());
                     //long packetSize = BinaryPrimitives.ReverseEndianness(sr.ReadInt64());
                     //long packetSize = BinaryPrimitives.ReverseEndianness(BitConverter.ToInt64(headPart, 5)); 
-                    var packet = new byte[packetSize];
-                    stream.ReadExactly(packet);
+                    var packet = ArrayPool<byte>.Shared.Rent((int)packetSize);
+                    stream.ReadExactly(packet, 0, (int)packetSize);
                     switch (method)
                     {
                         case "labelNames_v5":
                         case "labelValues_v5":
-                            postfix = ArrayPool<byte>.Shared.Rent(4);
+                            postfix = new byte[4];//ArrayPool<byte>.Shared.Rent(4);
                             stream.ReadExactly(postfix);
                             break;
                         case "tsdbStatus_v5":
@@ -182,10 +179,12 @@ namespace VictoriaCheckProxy
 
                     }
                     int lastPos = 0;
+                    uint accountId = 0;
+                    uint projectId = 0;
                     if (method != "tenants_v1")
                     {
-                        var accountId = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt32(packet, 0));
-                        var projectId = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt32(packet, 4));
+                        accountId = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt32(packet, 0));
+                        projectId = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt32(packet, 4));
                         lastPos = 8;
                     }
                     
@@ -193,8 +192,10 @@ namespace VictoriaCheckProxy
                     long maxTs = long.MaxValue;
                     lastPos += Converter.UnmarshalVarInt64(packet, ref minTs, lastPos);
                     lastPos += Converter.UnmarshalVarInt64(packet, ref maxTs, lastPos);
+                    logger.LogDebug($"From query got tenant {accountId}:{projectId} from {minTs} to {maxTs}");
                     if (minTs < Program.endDate && Program.startDate < maxTs && !rejectedMethod)
                     {
+                        
                         VMStorageConnection vmstorageConn =  Program.connectionPool.GetClient();
                         var buffer = ArrayPool<byte>.Shared.Rent(10 * 1024 * 1024);
                         try
@@ -206,17 +207,17 @@ namespace VictoriaCheckProxy
                             if (prefix.Length > 0)
                             {
                                 vmstorageConn.networkStream.Write(prefix);
-                                ArrayPool<byte>.Shared.Return(prefix);
+                                //ArrayPool<byte>.Shared.Return(prefix);
                             }
                             vmstorageConn.networkStream.Write(headPart);
-                            vmstorageConn.networkStream.Write(packet);
+                            vmstorageConn.networkStream.Write(packet, 0, (int)packetSize);
                             if (postfix.Length > 0)
                             {
                                 vmstorageConn.networkStream.Write(postfix);
-                                ArrayPool<byte>.Shared.Return(postfix);
+                                //ArrayPool<byte>.Shared.Return(postfix);
                             }
                             vmstorageConn.networkStream.Flush();
-                            
+                            logger.LogDebug($"Sent query to vmstorage");
                             int bytesRead = 0;
 
                             int totalRead = 0;
@@ -229,19 +230,18 @@ namespace VictoriaCheckProxy
                             {
                                 var errorMessage = Converter.ReadLongString(vmstorageConn.decompressor);
                                 clientCompressor.Write(errorMessage);
-                                ArrayPool<byte>.Shared.Return(errorMessage);
+                                //ArrayPool<byte>.Shared.Return(errorMessage);
                                 blockSize = Converter.UnmarshalUint64(vmstorageConn.decompressor);
-                                //Console.WriteLine($"First block size {blockSize}");
+                                logger.LogDebug($"First block size {blockSize}");
                                 clientCompressor.Write(Converter.MarshalUint64(blockSize));
                                 blockCount = 1;
                                 while (blockSize > 0) {
                                     if (blockSize > (ulong) buffer.Length)
                                     {
-                                        //Console.WriteLine("Block size too large for one read");
                                         vmstorageConn.decompressor.ReadExactly(buffer);
                                         blockSize -= (ulong)buffer.Length;
                                         bytesRead = buffer.Length;
-                                        //Console.WriteLine("Block size too large for one read");
+                                        logger.LogDebug("Block size too large for one read");
                                     }
                                     else
                                     {
@@ -255,7 +255,7 @@ namespace VictoriaCheckProxy
                                     if (blockSize == 0) {
                                         blockSize = Converter.UnmarshalUint64(vmstorageConn.decompressor);
                                         clientCompressor.Write(Converter.MarshalUint64(blockSize));
-                                        //Console.WriteLine($"New block size {blockSize}");
+                                        logger.LogDebug($"New block size {blockSize}");
                                     }
                                     /*if (blockSize == 0)
                                     {
@@ -264,7 +264,8 @@ namespace VictoriaCheckProxy
                                 }
                                 var complete = Converter.ReadLongString(vmstorageConn.decompressor);
                                 clientCompressor.Write(complete);
-                                ArrayPool<byte>.Shared.Return(errorMessage);
+                                //ArrayPool<byte>.Shared.Return(errorMessage);
+                                logger.LogDebug("End reading of response from vmstorage");
                                 clientCompressor.Flush();
                             }
 
@@ -273,7 +274,7 @@ namespace VictoriaCheckProxy
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine("302-" + ex.ToString() + "\r\n" + ex.StackTrace);
+                            logger.LogError(ex, "");
                         }
                         finally
                         {
@@ -294,7 +295,7 @@ namespace VictoriaCheckProxy
                         }
                         clientCompressor.Flush();
                     }
-
+                    ArrayPool<byte>.Shared.Return(packet);
                     //stream.Flush();
                     //vmstorStream.Flush();
                     //_client.Close();
@@ -304,14 +305,14 @@ namespace VictoriaCheckProxy
             catch (EndOfStreamException) { } //хпуой
             catch (Exception ex)
             {
-                Console.WriteLine("330-"+ex.ToString() + "\r\n" + ex.StackTrace);
+                logger.LogError(ex, "");
             }
             finally
             {
                 
                 if (_ownsClient && _client != null)
                 {
-                    //Console.WriteLine("connection closed");
+                    logger.LogInformation("Connection closed");
                     (_client as IDisposable).Dispose();
                     _client = null;
                 }
