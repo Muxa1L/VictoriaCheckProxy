@@ -157,7 +157,8 @@ namespace VictoriaCheckProxy
                             throw new Exception($"unsupported method: {method}");
                             
                     }
-                    logger.LogDebug("Method: {} with packet size {}", method, packetSize);
+                    if (logger.IsEnabled(LogLevel.Debug))
+                        logger.LogDebug("Method: {} with packet size {}", method, packetSize);
                     //bool traceEnabled = sr.ReadBoolean();
                     //uint timeout = BinaryPrimitives.ReverseEndianness(sr.ReadUInt32());
                     //long packetSize = BinaryPrimitives.ReverseEndianness(sr.ReadInt64());
@@ -192,7 +193,8 @@ namespace VictoriaCheckProxy
                     long maxTs = long.MaxValue;
                     lastPos += Converter.UnmarshalVarInt64(packet, ref minTs, lastPos);
                     lastPos += Converter.UnmarshalVarInt64(packet, ref maxTs, lastPos);
-                    logger.LogDebug("From query got tenant {accountId}:{projectId} from {minTs} to {maxTs}", accountId, projectId, minTs, maxTs);
+                    if (logger.IsEnabled(LogLevel.Debug))
+                        logger.LogDebug("From query got tenant {accountId}:{projectId} from {minTs} to {maxTs}", accountId, projectId, minTs, maxTs);
                     if (minTs < Program.endDate && Program.startDate < maxTs && !rejectedMethod)
                     {
                         
@@ -217,7 +219,8 @@ namespace VictoriaCheckProxy
                                 //ArrayPool<byte>.Shared.Return(postfix);
                             }
                             vmstorageConn.networkStream.Flush();
-                            logger.LogDebug("Sent query to vmstorage");
+                            if (logger.IsEnabled(LogLevel.Debug))
+                                logger.LogDebug("Sent query to vmstorage");
                             int bytesRead = 0;
 
                             int totalRead = 0;
@@ -232,7 +235,8 @@ namespace VictoriaCheckProxy
                                 clientCompressor.Write(errorMessage);
                                 //ArrayPool<byte>.Shared.Return(errorMessage);
                                 blockSize = Converter.UnmarshalUint64(vmstorageConn.decompressor);
-                                logger.LogDebug("First block size {blockSize}", blockSize);
+                                if (logger.IsEnabled(LogLevel.Debug))
+                                    logger.LogDebug("First block size {blockSize}", blockSize);
                                 clientCompressor.Write(Converter.MarshalUint64(blockSize));
                                 blockCount = 1;
                                 while (blockSize > 0) {
@@ -241,7 +245,8 @@ namespace VictoriaCheckProxy
                                         vmstorageConn.decompressor.ReadExactly(buffer);
                                         blockSize -= (ulong)buffer.Length;
                                         bytesRead = buffer.Length;
-                                        logger.LogDebug("Block size too large for one read");
+                                        if (logger.IsEnabled(LogLevel.Debug))
+                                            logger.LogDebug("Block size too large for one read");
                                     }
                                     else
                                     {
@@ -255,7 +260,8 @@ namespace VictoriaCheckProxy
                                     if (blockSize == 0) {
                                         blockSize = Converter.UnmarshalUint64(vmstorageConn.decompressor);
                                         clientCompressor.Write(Converter.MarshalUint64(blockSize));
-                                        logger.LogDebug("New block size {blockSize}", blockSize);
+                                        if (logger.IsEnabled(LogLevel.Debug))
+                                            logger.LogDebug("New block size {blockSize}", blockSize);
                                     }
                                     /*if (blockSize == 0)
                                     {
@@ -265,7 +271,8 @@ namespace VictoriaCheckProxy
                                 var complete = Converter.ReadLongString(vmstorageConn.decompressor);
                                 clientCompressor.Write(complete);
                                 //ArrayPool<byte>.Shared.Return(errorMessage);
-                                logger.LogDebug("End reading of response from vmstorage");
+                                if (logger.IsEnabled(LogLevel.Debug))
+                                    logger.LogDebug("End reading of response from vmstorage");
                                 clientCompressor.Flush();
                             }
 
@@ -312,7 +319,8 @@ namespace VictoriaCheckProxy
                 
                 if (_ownsClient && _client != null)
                 {
-                    logger.LogInformation("Connection closed");
+                    if (logger.IsEnabled(LogLevel.Information))
+                        logger.LogInformation("Connection closed");
                     (_client as IDisposable).Dispose();
                     _client = null;
                 }

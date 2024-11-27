@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.PortableExecutable;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -29,7 +31,14 @@ namespace VictoriaCheckProxy
             return Encoding.UTF8.GetString(buffer, start + 8, (int)length);
         }
 
-        
+        public static string UnmarshalLongString(Stream reader)
+        {
+            UInt64 length = Converter.UnmarshalUint64(reader);
+            var bytes = ArrayPool<byte>.Shared.Rent((int)length);
+            var result = Encoding.UTF8.GetString(bytes);
+            ArrayPool<byte>.Shared.Return(bytes);
+            return result;
+        }
 
         public static byte[] ReadLongString(Stream reader)
         {
@@ -62,10 +71,27 @@ namespace VictoriaCheckProxy
             return bytes;
         }
 
+        public static void MarshalLongString(string str, Stream stream)
+        {
+            var bytes = ArrayPool<byte>.Shared.Rent(str.Length);
+            Encoding.UTF8.GetBytes(str, bytes);
+            MarshalUint64((ulong)bytes.Length, stream);
+            stream.Write(bytes, 0, bytes.Length);
+            ArrayPool<byte>.Shared.Return(bytes);
+        }
 
         public static byte[] MarshalUint64(UInt64 num)
         {
             return BitConverter.GetBytes(BinaryPrimitives.ReverseEndianness(num));
+            //return reader.ReadUInt16();
+        }
+
+        public static void MarshalUint64(UInt64 num, Stream stream)
+        {
+            var bytes = ArrayPool<byte>.Shared.Rent(8);
+            BitConverter.TryWriteBytes(bytes, BinaryPrimitives.ReverseEndianness(num));
+            stream.Write(bytes);
+            ArrayPool<byte>.Shared.Return(bytes);
             //return reader.ReadUInt16();
         }
 
