@@ -40,9 +40,21 @@ namespace VictoriaCheckProxy
 
         public void Dispose()
         {
-            decompressor.Dispose();
-            networkStream.Dispose();
-            tcpClient.Dispose();
+            try
+            {
+                decompressor.Dispose();
+            }
+            catch (Exception) { }
+            try
+            {
+                networkStream.Dispose();
+            }
+            catch (Exception) { }
+            try
+            {
+                tcpClient.Dispose();
+            }
+            catch (Exception) { }
             decompressor = null;
             networkStream = null;
             tcpClient = null;
