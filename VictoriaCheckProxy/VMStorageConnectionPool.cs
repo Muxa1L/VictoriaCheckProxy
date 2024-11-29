@@ -21,11 +21,16 @@ namespace VictoriaCheckProxy
             Console.WriteLine("Creating new client");
             tcpClient = new TcpClient();
             //tcpClient.ReceiveTimeout = 60 * 1000;
+            
             tcpClient.Connect(IPEndPoint.Parse(Program.storageEP));
             //new byte[64 * 1024 * 1024];
             //var pipeBuffer = ArrayPool<byte>.Shared.Rent(10 * 1024 * 1024);
 
             networkStream = tcpClient.GetStream();
+            networkStream.Socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+            var test = networkStream.Socket.GetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval);
+            networkStream.Socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, 60);
+            test = networkStream.Socket.GetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval);
             //, checkEndOfStream: false, leaveOpen: false))
 
             //decomp.SetParameter(ZstdSharp.Unsafe.ZSTD_dParameter.ZSTD_d_windowLogMax, 31);
