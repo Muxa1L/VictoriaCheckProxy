@@ -10,6 +10,12 @@
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     <ContainerFamily>alpine</ContainerFamily>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DebugType>full</DebugType>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>portable</DebugType>
+  </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Program_bak.cs" />
   </ItemGroup>
