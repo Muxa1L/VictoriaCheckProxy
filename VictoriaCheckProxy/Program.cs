@@ -43,7 +43,7 @@ namespace VictoriaCheckProxy
             {
                 connectionLimit = int.Parse(args[3]);
             }
-            factory = LoggerFactory.Create(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Error));
+            factory = LoggerFactory.Create(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Information));
             DateTimeOffset date = DateTime.ParseExact(storedMonth, "yyyy-MM", CultureInfo.InvariantCulture);
             var logger = factory.CreateLogger("Main");
             startDate = date.ToUnixTimeMilliseconds();
@@ -55,11 +55,21 @@ namespace VictoriaCheckProxy
             var server = new TcpListener(IPAddress.Any, 8801);
             server.Start();
             logger.LogInformation("started reception");
+            List<Thread> threads = new List<Thread>();
             while (true)
             {
                 var client = await server.AcceptTcpClientAsync();
                 var cw = new ClientWorking(client, true);
-                new Thread(cw.ClientWorker).Start();
+                var thr = new Thread(cw.ClientWorker);
+                thr.Start();
+                threads.Add(thr);
+                logger.LogInformation($"Currently running {threads.Count} threads");
+                foreach (var thread in threads.ToArray()) {
+                    if (!thread.IsAlive) {
+                        threads.Remove(thread);
+                        logger.LogInformation($"Thread {thread.ManagedThreadId} is not alive and removed");
+                    }
+                }
             }
         }
 
@@ -84,11 +94,13 @@ namespace VictoriaCheckProxy
             _ownsClient = ownsClient;
         }
 
-        public async void ClientWorker()
+        public void ClientWorker()
         {
             var logger = Program.factory.CreateLogger("ClientWorker");
             try
             {
+                if (logger.IsEnabled(LogLevel.Information))
+                    logger.LogInformation("Connection opened");
                 //Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId} connection opened from {_client.Client.RemoteEndPoint.ToString()}");
                 using var stream = _client.GetStream();
                 using var clientCompressor = new CompressionStream(stream, level: Program.compressLevel);
@@ -124,7 +136,7 @@ namespace VictoriaCheckProxy
                     stream.ReadExactly(pad);
 
                     string method = Converter.UnmarshalString(stream);
-                    
+
                     //bool bypass = false;
                     stream.ReadExactly(commonPart); //tracing flag + timeout
 
