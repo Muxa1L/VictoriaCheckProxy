@@ -176,73 +176,73 @@ namespace VictoriaCheckProxy
                     //long packetSize = BinaryPrimitives.ReverseEndianness(sr.ReadInt64());
                     //long packetSize = BinaryPrimitives.ReverseEndianness(BitConverter.ToInt64(headPart, 5)); 
                     var packet = ArrayPool<byte>.Shared.Rent((int)packetSize);
-                    stream.ReadExactly(packet, 0, (int)packetSize);
-                    switch (method)
+                    try
                     {
-                        case "labelNames_v5":
-                        case "labelValues_v5":
-                            postfix = new byte[4];//ArrayPool<byte>.Shared.Rent(4);
-                            stream.ReadExactly(postfix);
-                            break;
-                        case "tsdbStatus_v5":
-                            postfix = Converter.ReadLongString(stream);
-                            var topN = Converter.UnmarshalUint32(stream);
-                            rejectedMethod = true;
-                            break;
-
-                    }
-                    int lastPos = 0;
-                    uint accountId = 0;
-                    uint projectId = 0;
-                    if (method != "tenants_v1")
-                    {
-                        accountId = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt32(packet, 0));
-                        projectId = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt32(packet, 4));
-                        lastPos = 8;
-                    }
-                    
-                    long minTs = long.MinValue;
-                    long maxTs = long.MaxValue;
-                    lastPos += Converter.UnmarshalVarInt64(packet, ref minTs, lastPos);
-                    lastPos += Converter.UnmarshalVarInt64(packet, ref maxTs, lastPos);
-                    if (logger.IsEnabled(LogLevel.Debug))
-                        logger.LogDebug("From query got tenant {accountId}:{projectId} from {minTs} to {maxTs}", accountId, projectId, minTs, maxTs);
-                    if (minTs < Program.endDate && Program.startDate < maxTs && !rejectedMethod)
-                    {
-                        
-                        VMStorageConnection vmstorageConn =  Program.connectionPool.GetClient();
-                        var buffer = ArrayPool<byte>.Shared.Rent(10 * 1024 * 1024);
-                        try
+                        stream.ReadExactly(packet, 0, (int)packetSize);
+                        switch (method)
                         {
-                            var cts = new CancellationTokenSource();
-                            vmstorageConn.networkStream.Write(pad);
-                            vmstorageConn.networkStream.Write(Converter.MarshalString(method));
-                            vmstorageConn.networkStream.Write(commonPart);
-                            if (prefix.Length > 0)
-                            {
-                                vmstorageConn.networkStream.Write(prefix);
-                                //ArrayPool<byte>.Shared.Return(prefix);
-                            }
-                            vmstorageConn.networkStream.Write(headPart);
-                            vmstorageConn.networkStream.Write(packet, 0, (int)packetSize);
-                            if (postfix.Length > 0)
-                            {
-                                vmstorageConn.networkStream.Write(postfix);
-                                //ArrayPool<byte>.Shared.Return(postfix);
-                            }
-                            vmstorageConn.networkStream.Flush();
-                            if (logger.IsEnabled(LogLevel.Debug))
-                                logger.LogDebug("Sent query to vmstorage");
-                            int bytesRead = 0;
+                            case "labelNames_v5":
+                            case "labelValues_v5":
+                                postfix = new byte[4];//ArrayPool<byte>.Shared.Rent(4);
+                                stream.ReadExactly(postfix);
+                                break;
+                            case "tsdbStatus_v5":
+                                postfix = Converter.ReadLongString(stream);
+                                var topN = Converter.UnmarshalUint32(stream);
+                                rejectedMethod = true;
+                                break;
 
-                            int totalRead = 0;
-                            
-                            int currPos = 0;
-                            int blockCount = 0;
-                            ulong blockSize = 0;
-                            
+                        }
+                        int lastPos = 0;
+                        uint accountId = 0;
+                        uint projectId = 0;
+                        if (method != "tenants_v1")
+                        {
+                            accountId = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt32(packet, 0));
+                            projectId = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt32(packet, 4));
+                            lastPos = 8;
+                        }
+
+                        long minTs = long.MinValue;
+                        long maxTs = long.MaxValue;
+                        lastPos += Converter.UnmarshalVarInt64(packet, ref minTs, lastPos);
+                        lastPos += Converter.UnmarshalVarInt64(packet, ref maxTs, lastPos);
+                        if (logger.IsEnabled(LogLevel.Debug))
+                            logger.LogDebug("From query got tenant {accountId}:{projectId} from {minTs} to {maxTs}", accountId, projectId, minTs, maxTs);
+                        if (minTs < Program.endDate && Program.startDate < maxTs && !rejectedMethod)
+                        {
+
+                            VMStorageConnection vmstorageConn = Program.connectionPool.GetClient();
+                            var buffer = ArrayPool<byte>.Shared.Rent(10 * 1024 * 1024);
                             try
                             {
+                                var cts = new CancellationTokenSource();
+                                vmstorageConn.networkStream.Write(pad);
+                                vmstorageConn.networkStream.Write(Converter.MarshalString(method));
+                                vmstorageConn.networkStream.Write(commonPart);
+                                if (prefix.Length > 0)
+                                {
+                                    vmstorageConn.networkStream.Write(prefix);
+                                    //ArrayPool<byte>.Shared.Return(prefix);
+                                }
+                                vmstorageConn.networkStream.Write(headPart);
+                                vmstorageConn.networkStream.Write(packet, 0, (int)packetSize);
+                                if (postfix.Length > 0)
+                                {
+                                    vmstorageConn.networkStream.Write(postfix);
+                                    //ArrayPool<byte>.Shared.Return(postfix);
+                                }
+                                vmstorageConn.networkStream.Flush();
+                                if (logger.IsEnabled(LogLevel.Debug))
+                                    logger.LogDebug("Sent query to vmstorage");
+                                int bytesRead = 0;
+
+                                int totalRead = 0;
+
+                                int currPos = 0;
+                                int blockCount = 0;
+                                ulong blockSize = 0;
+
                                 var errorMessage = Converter.ReadLongString(vmstorageConn.decompressor);
                                 clientCompressor.Write(errorMessage);
                                 //ArrayPool<byte>.Shared.Return(errorMessage);
@@ -251,8 +251,9 @@ namespace VictoriaCheckProxy
                                     logger.LogDebug("First block size {blockSize}", blockSize);
                                 clientCompressor.Write(Converter.MarshalUint64(blockSize));
                                 blockCount = 1;
-                                while (blockSize > 0) {
-                                    if (blockSize > (ulong) buffer.Length)
+                                while (blockSize > 0)
+                                {
+                                    if (blockSize > (ulong)buffer.Length)
                                     {
                                         vmstorageConn.decompressor.ReadExactly(buffer);
                                         blockSize -= (ulong)buffer.Length;
@@ -264,12 +265,13 @@ namespace VictoriaCheckProxy
                                     {
                                         vmstorageConn.decompressor.ReadExactly(buffer, 0, (int)blockSize);
                                         bytesRead = (int)blockSize;
-                                        blockSize = 0;   
+                                        blockSize = 0;
                                     }
-                                    
+
                                     clientCompressor.Write(buffer, 0, bytesRead);
-                                    
-                                    if (blockSize == 0) {
+
+                                    if (blockSize == 0)
+                                    {
                                         blockSize = Converter.UnmarshalUint64(vmstorageConn.decompressor);
                                         clientCompressor.Write(Converter.MarshalUint64(blockSize));
                                         if (logger.IsEnabled(LogLevel.Debug))
@@ -287,34 +289,30 @@ namespace VictoriaCheckProxy
                                     logger.LogDebug("End reading of response from vmstorage");
                                 clientCompressor.Flush();
                             }
-
-                            catch (OperationCanceledException) { }
-                            catch (SocketException) { }
+                            finally
+                            {
+                                ArrayPool<byte>.Shared.Return(buffer);
+                                Program.connectionPool.ReturnClient(vmstorageConn);
+                            }
                         }
-                        catch (Exception ex)
+                        else
                         {
-                            logger.LogError(ex, "");
-                        }
-                        finally
-                        {
-                            ArrayPool<byte>.Shared.Return(buffer);
-                            Program.connectionPool.ReturnClient(vmstorageConn);
+                            clientCompressor.Write(emptyResponse);
+                            switch (method)
+                            {
+                                case "tsdbStatus_v5":
+                                    clientCompressor.Write(emptyResponse);
+                                    clientCompressor.Write(emptyResponse);
+                                    break;
+                                    //case "tenants_v1"
+                            }
+                            clientCompressor.Flush();
                         }
                     }
-                    else
+                    finally
                     {
-                        clientCompressor.Write(emptyResponse);
-                        switch (method)
-                        {
-                            case "tsdbStatus_v5":
-                                clientCompressor.Write(emptyResponse);
-                                clientCompressor.Write(emptyResponse);
-                                break;
-                            //case "tenants_v1"
-                        }
-                        clientCompressor.Flush();
+                        ArrayPool<byte>.Shared.Return(packet);
                     }
-                    ArrayPool<byte>.Shared.Return(packet);
                     //stream.Flush();
                     //vmstorStream.Flush();
                     //_client.Close();
