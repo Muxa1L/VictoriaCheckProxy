@@ -136,8 +136,12 @@ namespace VictoriaCheckProxy
                     var rejectedMethod = false;
                     byte[] postfix = Array.Empty<byte>();
                     byte[] prefix = Array.Empty<byte>();
-                    stream.ReadExactly(pad);
-
+                    var check = stream.Read(pad);
+                    if (check == 0)
+                    {
+                        logger.LogInformation($"[{Thread.CurrentThread.ManagedThreadId}] got 0 bytes instead of pad");
+                        break;
+                    }
                     string method = Converter.UnmarshalString(stream);
 
                     //bool bypass = false;
