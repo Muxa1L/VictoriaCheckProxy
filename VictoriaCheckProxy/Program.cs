@@ -64,6 +64,7 @@ namespace VictoriaCheckProxy
                 thr.Start();
                 threads.Add(thr);
                 logger.LogInformation($"Currently running {threads.Count} threads");
+                logger.LogInformation($"Currently free vmstorage connections {connectionPool.limit.CurrentCount}");
                 foreach (var thread in threads.ToArray()) {
                     if (!thread.IsAlive) {
                         threads.Remove(thread);
@@ -211,12 +212,12 @@ namespace VictoriaCheckProxy
                             logger.LogDebug("From query got tenant {accountId}:{projectId} from {minTs} to {maxTs}", accountId, projectId, minTs, maxTs);
                         if (minTs < Program.endDate && Program.startDate < maxTs && !rejectedMethod)
                         {
-
+                            logger.LogInformation($"[{Thread.CurrentThread.ManagedThreadId}] Get vmstorage connection from pool");
                             VMStorageConnection vmstorageConn = Program.connectionPool.GetClient();
                             var buffer = ArrayPool<byte>.Shared.Rent(10 * 1024 * 1024);
                             try
                             {
-                                var cts = new CancellationTokenSource();
+                                logger.LogInformation($"[{Thread.CurrentThread.ManagedThreadId}] Sending request {method} of size {packetSize} to vmstorage");
                                 vmstorageConn.networkStream.Write(pad);
                                 vmstorageConn.networkStream.Write(Converter.MarshalString(method));
                                 vmstorageConn.networkStream.Write(commonPart);
@@ -233,8 +234,7 @@ namespace VictoriaCheckProxy
                                     //ArrayPool<byte>.Shared.Return(postfix);
                                 }
                                 vmstorageConn.networkStream.Flush();
-                                if (logger.IsEnabled(LogLevel.Debug))
-                                    logger.LogDebug("Sent query to vmstorage");
+                                logger.LogInformation($"[{Thread.CurrentThread.ManagedThreadId}] Sent request");
                                 int bytesRead = 0;
 
                                 int totalRead = 0;
@@ -284,6 +284,7 @@ namespace VictoriaCheckProxy
                                 }
                                 var complete = Converter.ReadLongString(vmstorageConn.decompressor);
                                 clientCompressor.Write(complete);
+                                logger.LogInformation($"[{Thread.CurrentThread.ManagedThreadId}] End reading response from vmstorage");
                                 //ArrayPool<byte>.Shared.Return(errorMessage);
                                 if (logger.IsEnabled(LogLevel.Debug))
                                     logger.LogDebug("End reading of response from vmstorage");

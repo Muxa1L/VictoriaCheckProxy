@@ -70,7 +70,7 @@ namespace VictoriaCheckProxy
         ConcurrentQueue<VMStorageConnection> connections;
         //ConcurrentBag<TcpClient> freeConnections;
         readonly int size = 0;
-        readonly SemaphoreSlim limit;
+        internal readonly SemaphoreSlim limit;
         public VMStorageConnectionPool(int size)
         {
             connections = new ConcurrentQueue<VMStorageConnection>();
