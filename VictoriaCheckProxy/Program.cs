@@ -56,22 +56,11 @@ namespace VictoriaCheckProxy
             var server = new TcpListener(IPAddress.Any, 8801);
             server.Start();
             logger.LogInformation("started reception");
-            List<Thread> threads = new List<Thread>();
             while (true)
             {
                 var client = await server.AcceptTcpClientAsync();
                 var cw = new ClientWorking(client, true);
-                var thr = new Thread(cw.ClientWorker);
-                thr.Start();
-                threads.Add(thr);
-                logger.LogInformation($"Currently running {threads.Count} threads");
-                logger.LogInformation($"Currently free vmstorage connections {connectionPool.limit.CurrentCount} {connectionBalance}");
-                foreach (var thread in threads.ToArray()) {
-                    if (!thread.IsAlive) {
-                        threads.Remove(thread);
-                        logger.LogInformation($"Thread {thread.ManagedThreadId} is not alive and removed");
-                    }
-                }
+                new Thread(cw.ClientWorker).Start();
             }
         }
 
@@ -139,7 +128,7 @@ namespace VictoriaCheckProxy
                     var check = stream.Read(pad);
                     if (check == 0)
                     {
-                        logger.LogInformation($"[{Thread.CurrentThread.ManagedThreadId}] got 0 bytes instead of pad");
+                        logger.LogInformation($"[{Thread.CurrentThread.ManagedThreadId}] got 0 bytes instead of pad. Client connected {_client.Connected} Available {_client.Available}");
                         break;
                     }
                     string method = Converter.UnmarshalString(stream);
