@@ -27,6 +27,7 @@ namespace VictoriaCheckProxy
         public static string storageEP;
         public static int compressLevel=0;
         public static int connectionLimit = 5;
+        public static int connectionBalance = 0;
         internal static VMStorageConnectionPool connectionPool = null;
         public static ILoggerFactory factory;
 
@@ -64,7 +65,7 @@ namespace VictoriaCheckProxy
                 thr.Start();
                 threads.Add(thr);
                 logger.LogInformation($"Currently running {threads.Count} threads");
-                logger.LogInformation($"Currently free vmstorage connections {connectionPool.limit.CurrentCount}");
+                logger.LogInformation($"Currently free vmstorage connections {connectionPool.limit.CurrentCount} {connectionBalance}");
                 foreach (var thread in threads.ToArray()) {
                     if (!thread.IsAlive) {
                         threads.Remove(thread);
@@ -100,6 +101,7 @@ namespace VictoriaCheckProxy
             var logger = Program.factory.CreateLogger("ClientWorker");
             try
             {
+                Program.connectionBalance++;
                 if (logger.IsEnabled(LogLevel.Information))
                     logger.LogInformation("Connection opened");
                 //Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId} connection opened from {_client.Client.RemoteEndPoint.ToString()}");
@@ -334,6 +336,7 @@ namespace VictoriaCheckProxy
                         logger.LogInformation("Connection closed");
                     (_client as IDisposable).Dispose();
                     _client = null;
+                    Program.connectionBalance--;
                 }
             }
         }
