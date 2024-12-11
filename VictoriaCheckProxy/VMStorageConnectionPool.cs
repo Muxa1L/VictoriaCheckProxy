@@ -111,7 +111,7 @@ namespace VictoriaCheckProxy
                     Console.WriteLine("Unread data in vmstorage connection. Reading");
                     var got = result.decompressor.Read(buffer);
                     Console.WriteLine($"Got {got} bytes");
-                    Console.WriteLine(BitConverter.ToString(buffer));
+                    Console.WriteLine(BitConverter.ToString(buffer, 0, got));
 
                 }
                 finally
