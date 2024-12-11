@@ -112,6 +112,7 @@ namespace VictoriaCheckProxy
                     var got = result.decompressor.Read(buffer);
                     Console.WriteLine($"Got {got} bytes");
                     Console.WriteLine(BitConverter.ToString(buffer));
+
                 }
                 finally
                 {
