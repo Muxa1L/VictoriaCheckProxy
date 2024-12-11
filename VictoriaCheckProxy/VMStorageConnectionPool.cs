@@ -102,6 +102,10 @@ namespace VictoriaCheckProxy
             {
                 result = new VMStorageConnection();
             }
+            else if (result.networkStream.DataAvailable)
+            {
+                result.networkStream.Seek(result.networkStream.Socket.Available, SeekOrigin.Current);
+            }
             return result;
         }
         public void ReturnClient(VMStorageConnection client)
