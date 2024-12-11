@@ -105,7 +105,10 @@ namespace VictoriaCheckProxy
             }
             else if (result.networkStream.DataAvailable)
             {
-                var buffer = ArrayPool<byte>.Shared.Rent(10 * 1024 * 1024);
+                Console.WriteLine("Unread data in vmstorage connection. Recreating it");
+                result.Dispose();
+                result = new VMStorageConnection(); 
+                /*var buffer = ArrayPool<byte>.Shared.Rent(10 * 1024 * 1024);
                 try
                 {
                     Console.WriteLine("Unread data in vmstorage connection. Reading");
@@ -118,7 +121,7 @@ namespace VictoriaCheckProxy
                 {
                     ArrayPool<byte>.Shared.Return(buffer);
                 }
-                
+                */
             }
             return result;
         }
