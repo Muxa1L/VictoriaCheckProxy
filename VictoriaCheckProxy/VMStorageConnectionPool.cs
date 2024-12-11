@@ -8,6 +8,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 using ZstdSharp;
+using System.Buffers;
 
 namespace VictoriaCheckProxy
 {
@@ -104,7 +105,19 @@ namespace VictoriaCheckProxy
             }
             else if (result.networkStream.DataAvailable)
             {
-                result.networkStream.Seek(result.networkStream.Socket.Available, SeekOrigin.Current);
+                var buffer = ArrayPool<byte>.Shared.Rent(10 * 1024 * 1024);
+                try
+                {
+                    Console.WriteLine("Unread data in vmstorage connection. Reading");
+                    var got = result.decompressor.Read(buffer);
+                    Console.WriteLine($"Got {got} bytes");
+                    Console.WriteLine(BitConverter.ToString(buffer));
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(buffer);
+                }
+                
             }
             return result;
         }

@@ -26,7 +26,7 @@ namespace VictoriaCheckProxy
         public static long endDate;
         public static string storageEP;
         public static int compressLevel=0;
-        public static int connectionLimit = 1;
+        public static int connectionLimit = 5;
         public static int connectionBalance = 0;
         internal static VMStorageConnectionPool connectionPool = null;
         public static ILoggerFactory factory;
