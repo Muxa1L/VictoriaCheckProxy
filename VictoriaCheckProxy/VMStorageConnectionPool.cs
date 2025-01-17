@@ -21,8 +21,8 @@ namespace VictoriaCheckProxy
         {
             Console.WriteLine("Creating new client");
             tcpClient = new TcpClient();
-            tcpClient.ReceiveTimeout = 60 * 1000;
-            tcpClient.SendTimeout = 60 * 1000;
+            //tcpClient.ReceiveTimeout = 60 * 1000;
+            //tcpClient.SendTimeout = 60 * 1000;
 
             tcpClient.Connect(IPEndPoint.Parse(Program.storageEP));
             //new byte[64 * 1024 * 1024];
@@ -31,7 +31,7 @@ namespace VictoriaCheckProxy
             networkStream = tcpClient.GetStream();
             networkStream.Socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
             var test = networkStream.Socket.GetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval);
-            networkStream.Socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, 60);
+            networkStream.Socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, 30);
             test = networkStream.Socket.GetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval);
             //, checkEndOfStream: false, leaveOpen: false))
 
