@@ -60,7 +60,7 @@ namespace VictoriaCheckProxy
             {
                 var client = await server.AcceptTcpClientAsync();
                 var cw = new ClientWorking(client, true);
-                new Thread(cw.ClientWorker).Start();
+                new Thread(cw.ClientWorkerAsync).Start();
             }
         }
 
@@ -85,7 +85,7 @@ namespace VictoriaCheckProxy
             _ownsClient = ownsClient;
         }
 
-        public void ClientWorker()
+        public async void ClientWorkerAsync()
         {
             var logger = Program.factory.CreateLogger("ClientWorker");
             try
@@ -240,10 +240,10 @@ namespace VictoriaCheckProxy
                                 int blockCount = 0;
                                 ulong blockSize = 0;
 
-                                var errorMessage = Converter.ReadLongString(vmstorageConn.decompressor);
+                                var errorMessage = await Converter.ReadLongStringAsync(vmstorageConn.decompressor);
                                 clientCompressor.Write(errorMessage);
                                 //ArrayPool<byte>.Shared.Return(errorMessage);
-                                blockSize = Converter.UnmarshalUint64(vmstorageConn.decompressor);
+                                blockSize = await Converter.UnmarshalUint64Async(vmstorageConn.decompressor);
                                 if (logger.IsEnabled(LogLevel.Debug))
                                     logger.LogDebug("First block size {blockSize}", blockSize);
                                 clientCompressor.Write(Converter.MarshalUint64(blockSize));
