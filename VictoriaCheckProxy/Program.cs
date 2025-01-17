@@ -95,6 +95,8 @@ namespace VictoriaCheckProxy
                     logger.LogInformation("Connection opened");
                 //Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId} connection opened from {_client.Client.RemoteEndPoint.ToString()}");
                 using var stream = _client.GetStream();
+                stream.Socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+                stream.Socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, 30);
                 using var clientCompressor = new CompressionStream(stream, level: Program.compressLevel);
                 ///Handshake begin 
                 try
